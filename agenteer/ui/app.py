@@ -37,6 +37,10 @@ def initialize_session_state():
         st.session_state.created_agent_id = None
     if "navigation_action" not in st.session_state:
         st.session_state.navigation_action = None
+    if "clear_activity" not in st.session_state:
+        st.session_state.clear_activity = False
+    if "last_crawl_time" not in st.session_state:
+        st.session_state.last_crawl_time = None
 
 # Call the initialization function
 initialize_session_state()
@@ -113,7 +117,7 @@ st.sidebar.title("Agenteer")
 st.sidebar.markdown("AI Agent Builder")
 
 # Navigation
-page_options = ["Home", "Create Agent", "My Agents", "Documentation", "Settings"]
+page_options = ["Home", "Create Agent", "My Agents", "Documentation", "Crawl", "Settings"]
 current_page_index = page_options.index(st.session_state.page) if st.session_state.page in page_options else 0
 
 selected_page = st.sidebar.selectbox(
@@ -201,9 +205,7 @@ if st.session_state.page == "Home":
         
         if available_models:
             st.success(f"{len(available_models)} model(s) available")
-            st.write("Available models:")
-            for model in available_models:
-                st.markdown(f"- `{model}`")
+            st.selectbox("Available models:", available_models, key="home_model_select")
         else:
             st.warning("No models available. Please configure API keys.")
     
@@ -227,12 +229,21 @@ if st.session_state.page == "Home":
     # Recent activity
     st.subheader("Recent Activity")
     
-    with get_db_session() as db:
-        recent_executions = (
-            db.query(AgentExecution)
-            .order_by(AgentExecution.started_at.desc())
-            .limit(5)
-            .all()
+    # Add a Clear button for recent activity
+    col1, col2 = st.columns([4, 1])
+    with col2:
+        if st.button("Clear Activity", key="clear_activity_btn"):
+            # We don't actually delete from the database, just clear the UI display
+            st.session_state.clear_activity = True
+            
+    # Check if we should show activity
+    if not hasattr(st.session_state, "clear_activity") or not st.session_state.clear_activity:
+        with get_db_session() as db:
+            recent_executions = (
+                db.query(AgentExecution)
+                .order_by(AgentExecution.started_at.desc())
+                .limit(5)
+                .all()
         )
         
         if not recent_executions:
@@ -257,6 +268,11 @@ if st.session_state.page == "Home":
                                 st.markdown(f"**{agent.name}**: {message.content}")
                             elif message.role == "tool":
                                 st.markdown(f"**Tool ({message.tool_name})**: {message.tool_output}")
+    else:
+        st.info("Activity log cleared. Create a new agent or run an existing one to see new activity.")
+        # Add button to restore activity
+        if st.button("Restore Activity"):
+            st.session_state.clear_activity = False
 
 # Create Agent page
 elif st.session_state.page == "Create Agent":
@@ -830,6 +846,117 @@ elif st.session_state.page == "Documentation":
                         st.markdown(f"**URL**: [{doc.url}]({doc.url})")
                         st.markdown("**Content**:")
                         st.markdown(doc.content[:500] + "..." if len(doc.content) > 500 else doc.content)
+
+# Crawl page
+elif st.session_state.page == "Crawl":
+    st.title("Document Crawler")
+    
+    st.markdown("""
+    The Document Crawler helps you gather and index external documentation to enhance your agents.
+    Crawled documents are stored in the vector database and can be used for retrieval and context augmentation.
+    """)
+    
+    # Crawl source selection
+    crawl_source = st.selectbox(
+        "Documentation Source",
+        ["All Sources", "Pydantic AI", "LangChain", "Anthropic", "Custom URL"]
+    )
+    
+    if crawl_source == "Custom URL":
+        custom_url = st.text_input("Enter URL to crawl", placeholder="https://example.com/docs")
+        st.info("Note: For custom URLs, you may need to specify additional crawl parameters.")
+        
+        base_url = st.text_input(
+            "Base URL (optional)", 
+            placeholder="https://example.com",
+            help="The base URL to limit crawling scope. Leave empty to use the provided URL as base."
+        )
+    else:
+        custom_url = None
+        base_url = None
+    
+    # Crawl settings
+    with st.expander("Crawl Settings"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            max_pages = st.slider("Maximum Pages", 
+                                 min_value=10, 
+                                 max_value=500, 
+                                 value=100, 
+                                 step=10,
+                                 help="Maximum number of pages to crawl")
+            
+            max_depth = st.slider("Maximum Depth", 
+                                 min_value=1, 
+                                 max_value=5, 
+                                 value=3, 
+                                 step=1,
+                                 help="Maximum link depth to crawl")
+        
+        with col2:
+            file_types = st.multiselect("File Types",
+                                       ["html", "md", "pdf", "txt"],
+                                       default=["html", "md"],
+                                       help="Types of files to crawl and index")
+            
+            follow_links = st.checkbox("Follow External Links", 
+                                      value=False,
+                                      help="If enabled, the crawler will follow links to external domains")
+    
+    # Start crawling button
+    if st.button("Start Crawling", type="primary"):
+        with st.spinner(f"Crawling {crawl_source} documentation..."):
+            try:
+                if crawl_source == "All Sources":
+                    pages_crawled = asyncio.run(crawl_all_docs(max_pages=max_pages))
+                elif crawl_source == "Pydantic AI":
+                    pages_crawled = asyncio.run(crawl_pydantic_ai_docs(max_pages=max_pages))
+                elif crawl_source == "LangChain":
+                    pages_crawled = asyncio.run(crawl_langchain_docs(max_pages=max_pages))
+                elif crawl_source == "Anthropic":
+                    pages_crawled = asyncio.run(crawl_anthropic_docs(max_pages=max_pages))
+                elif crawl_source == "Custom URL" and custom_url:
+                    # Custom URL crawling would need to be implemented
+                    st.warning("Custom URL crawling is not yet implemented")
+                    pages_crawled = 0
+                else:
+                    st.error("Please select a valid documentation source")
+                    pages_crawled = 0
+                
+                if pages_crawled > 0:
+                    st.success(f"Successfully crawled {pages_crawled} pages from {crawl_source}!")
+                
+                # Set a flag to refresh this panel
+                st.session_state.navigation_action = "refresh_after_crawl"
+            except Exception as e:
+                st.error(f"Error crawling documentation: {str(e)}")
+    
+    # Display documentation statistics
+    st.subheader("Document Statistics")
+    with get_db_session() as db:
+        total_docs = db.query(DocumentationPage).count()
+        
+        sources = (
+            db.query(DocumentationPage.source, func.count(DocumentationPage.id))
+            .group_by(DocumentationPage.source)
+            .all()
+        )
+        
+        st.markdown(f"**Total Documentation Pages**: {total_docs}")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if sources:
+                st.markdown("**Pages by Source**:")
+                for source, count in sources:
+                    st.markdown(f"- {source}: {count} pages")
+        
+        with col2:
+            # Last crawl time would be stored in settings or database
+            st.markdown("**Last Crawl**:")
+            st.markdown("No recent crawl activity")
 
 # Settings page
 elif st.session_state.page == "Settings":
