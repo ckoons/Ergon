@@ -121,6 +121,9 @@ with get_db_session() as db:
     agent_count = db.query(Agent).count()
     doc_count = db.query(DocumentationPage).count()
 
+# Define the page options with the base names
+page_base_names = ["Home", "Create Agent", "My Agents", "Documentation", "Web Search", "Settings"]
+# Create display versions with counts
 page_options = [
     "Home", 
     "Create Agent", 
@@ -129,7 +132,13 @@ page_options = [
     "Web Search", 
     "Settings"
 ]
-current_page_index = page_options.index(st.session_state.page.split(" ")[0]) if st.session_state.page.split(" ")[0] in [p.split(" ")[0] for p in page_options] else 0
+
+# Get the current page index based on the base name
+current_page_index = 0
+for i, base_name in enumerate(page_base_names):
+    if st.session_state.page == base_name:
+        current_page_index = i
+        break
 
 selected_page = st.sidebar.selectbox(
     "Navigation",
@@ -138,9 +147,11 @@ selected_page = st.sidebar.selectbox(
     key="sidebar_nav"
 )
 
-# Handle navigation from sidebar
-if selected_page.split(" ")[0] != st.session_state.page.split(" ")[0]:
-    navigate_to(selected_page.split(" ")[0])
+# Handle navigation from sidebar - map back to base names
+for i, display_name in enumerate(page_options):
+    if selected_page == display_name and page_base_names[i] != st.session_state.page:
+        navigate_to(page_base_names[i])
+        break
 
 # Get Started dropdown in sidebar
 with st.sidebar.expander("Get Started"):
