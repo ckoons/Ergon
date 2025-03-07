@@ -114,11 +114,22 @@ except Exception as e:
 
 # Define sidebar
 st.sidebar.title("Agenteer")
-st.sidebar.markdown("AI Agent Builder")
+st.sidebar.markdown("*AI Agent Builder*")
 
 # Navigation
-page_options = ["Home", "Create Agent", "My Agents", "Documentation", "Crawl", "Settings"]
-current_page_index = page_options.index(st.session_state.page) if st.session_state.page in page_options else 0
+with get_db_session() as db:
+    agent_count = db.query(Agent).count()
+    doc_count = db.query(DocumentationPage).count()
+
+page_options = [
+    "Home", 
+    "Create Agent", 
+    f"My Agents ({agent_count})", 
+    f"Documentation ({doc_count})", 
+    "Web Search", 
+    "Settings"
+]
+current_page_index = page_options.index(st.session_state.page.split(" ")[0]) if st.session_state.page.split(" ")[0] in [p.split(" ")[0] for p in page_options] else 0
 
 selected_page = st.sidebar.selectbox(
     "Navigation",
@@ -128,9 +139,36 @@ selected_page = st.sidebar.selectbox(
 )
 
 # Handle navigation from sidebar
-if selected_page != st.session_state.page:
-    navigate_to(selected_page)
-    # Don't use experimental_rerun here, let Streamlit handle the rerun naturally
+if selected_page.split(" ")[0] != st.session_state.page.split(" ")[0]:
+    navigate_to(selected_page.split(" ")[0])
+
+# Get Started dropdown in sidebar
+with st.sidebar.expander("Get Started"):
+    st.markdown("""
+    - **Create Agent**: Create a new AI agent from scratch
+    - **My Agents**: View and interact with your existing agents
+    - **Documentation**: Manage documentation for agent creation
+    - **Web Search**: Crawl and index web documentation
+    - **Settings**: Configure Agenteer settings
+    """)
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### System Status")
+
+# Database info
+with st.sidebar.expander("Database"):
+    st.info(f"Location: {settings.database_url}")
+    st.metric("Agents", agent_count)
+    st.metric("Documentation Pages", doc_count)
+
+# Model info
+with st.sidebar.expander("Models"):
+    available_models = settings.available_models
+    if available_models:
+        st.success(f"{len(available_models)} model(s) available")
+        st.selectbox("Available models:", available_models, key="sidebar_model_select")
+    else:
+        st.warning("No models available. Please configure API keys.")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### LLM Status")
@@ -171,48 +209,14 @@ if st.session_state.navigation_action:
 
 # Home page
 if st.session_state.page == "Home":
-    st.title("Welcome to Agenteer")
-    
-    st.markdown("""
-    Agenteer is a streamlined AI agent builder with minimal configuration.
-    
-    ### Get Started
-    
-    - **Create Agent**: Create a new AI agent from scratch
-    - **My Agents**: View and interact with your existing agents
-    - **Documentation**: Manage documentation for agent creation
-    - **Settings**: Configure Agenteer settings
-    
-    ### System Status
-    """)
-    
-    # Display status information
-    col1, col2 = st.columns(2)
-    
+    col1, col2 = st.columns([3, 2])
     with col1:
-        st.subheader("Database")
-        st.info(f"Location: {settings.database_url}")
-        
-        with get_db_session() as db:
-            agent_count = db.query(Agent).count()
-            doc_count = db.query(DocumentationPage).count()
-            st.metric("Agents", agent_count)
-            st.metric("Documentation Pages", doc_count)
-    
+        st.title("Agenteer")
     with col2:
-        st.subheader("Models")
-        available_models = settings.available_models
-        
-        if available_models:
-            st.success(f"{len(available_models)} model(s) available")
-            st.selectbox("Available models:", available_models, key="home_model_select")
-        else:
-            st.warning("No models available. Please configure API keys.")
+        st.markdown("<div style='margin-top: 35px; font-size: 1.2em; color: #666;'>A streamlined AI agent builder</div>", unsafe_allow_html=True)
     
-    # Quick actions
-    st.subheader("Quick Actions")
-    
-    col1, col2, col3 = st.columns(3)
+    # Quick actions directly under title
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         if st.button("Create New Agent", use_container_width=True, key="home_create_btn"):
@@ -225,16 +229,22 @@ if st.session_state.page == "Home":
     with col3:
         if st.button("Manage Documentation", use_container_width=True, key="home_docs_btn"):
             navigate_to("Documentation")
+            
+    with col4:
+        if st.button("Web Search", use_container_width=True, key="home_crawl_btn"):
+            navigate_to("Web Search")
     
-    # Recent activity
-    st.subheader("Recent Activity")
-    
-    # Add a Clear button for recent activity
-    col1, col2 = st.columns([4, 1])
+    # Recent activity - putting header and buttons on same line
+    col1, col2, col3 = st.columns([3, 1, 1])
+    with col1:
+        st.subheader("Recent Activity")
     with col2:
-        if st.button("Clear Activity", key="clear_activity_btn"):
-            # We don't actually delete from the database, just clear the UI display
+        if st.button("Clear", key="clear_activity_btn", use_container_width=True):
             st.session_state.clear_activity = True
+    with col3:
+        if hasattr(st.session_state, "clear_activity") and st.session_state.clear_activity:
+            if st.button("Restore", key="restore_activity_btn", use_container_width=True):
+                st.session_state.clear_activity = False
             
     # Check if we should show activity
     if not hasattr(st.session_state, "clear_activity") or not st.session_state.clear_activity:
@@ -847,9 +857,9 @@ elif st.session_state.page == "Documentation":
                         st.markdown("**Content**:")
                         st.markdown(doc.content[:500] + "..." if len(doc.content) > 500 else doc.content)
 
-# Crawl page
-elif st.session_state.page == "Crawl":
-    st.title("Document Crawler")
+# Web Search page
+elif st.session_state.page == "Web Search":
+    st.title("Web Search")
     
     st.markdown("""
     The Document Crawler helps you gather and index external documentation to enhance your agents.
