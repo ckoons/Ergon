@@ -2,6 +2,14 @@
 
 This file contains useful information about the Agenteer project structure, commands, and development notes.
 
+## UI Styling
+
+The Agenteer UI has been styled with the following color scheme:
+
+- Main action buttons: Light Red/Orange (`#FF7043`) with darker hover effect (`#F4511E`)
+- Navigation in sidebar: Specific colors for different expanders
+- Recent Activity section: Collapsible expander with detail view
+
 ## GitHub Integration
 
 The GitHub integration allows Agenteer to create agents that can interact with GitHub repositories.

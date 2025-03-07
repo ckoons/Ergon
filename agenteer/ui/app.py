@@ -41,6 +41,8 @@ def initialize_session_state():
         st.session_state.clear_activity = False
     if "last_crawl_time" not in st.session_state:
         st.session_state.last_crawl_time = None
+    if "show_detail_for_execution" not in st.session_state:
+        st.session_state.show_detail_for_execution = None
 
 # Call the initialization function
 initialize_session_state()
@@ -90,6 +92,154 @@ try:
         initial_sidebar_state="expanded"
     )
     debug("Streamlit page config set successfully")
+    
+    # Add custom CSS for better form field visibility and styling
+    st.markdown("""
+    <style>
+    /* Global text color - make everything bright white by default */
+    body, p, span, div, h1, h2, h3, h4, h5, h6, label, button, input, textarea, select {
+        color: #FFFFFF !important;
+    }
+    
+    /* All Streamlit text elements to be white */
+    .stTextInput, .stTextArea, .stSelectbox, .stSlider, .stCheckbox, 
+    .stRadio, .stNumber, .stText, .stMarkdown, .stTitle, .stHeader, 
+    .stSubheader, .stSuccess, .stInfo, .stWarning, .stError, .stTabs,
+    .stDataFrame, .stTable {
+        color: #FFFFFF !important;
+    }
+    
+    /* Larger, bolder form labels across the app */
+    .stTextInput > label, .stTextArea > label, .stSelectbox > label, .stSlider > label {
+        font-size: 1.2rem !important;
+        font-weight: 600 !important;
+        color: #FFFFFF !important;  /* Bright white for maximum visibility */
+    }
+    
+    /* Improved contrast for info boxes */
+    .stAlert > div {
+        color: #FFFFFF !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Better visibility for Streamlit text and markdown */
+    .css-183lzff {  /* General text */
+        color: #FFFFFF !important;
+    }
+    
+    /* Make text in widgets more visible */
+    .stSelectbox label, .stSlider label, .stText, .stMarkdown, 
+    .stMarkdown p, .stMarkdown span, .stMarkdown div {
+        color: #FFFFFF !important;
+    }
+    
+    /* Make help text more visible */
+    .stMarkdown a, small, .stSelectbox div small, .stTextInput div small, 
+    .stNumberInput div small, .stTextArea div small {
+        color: #FFFFFF !important;  /* White text for everything */
+        opacity: 1 !important;
+    }
+    
+    /* Bright sidebar text */
+    .css-1544g2n {  /* Sidebar */
+        color: white !important;
+    }
+    
+    /* All sidebar content should be bright white */
+    [data-testid="stSidebar"] .stMarkdown,
+    [data-testid="stSidebar"] .stMarkdown p,
+    [data-testid="stSidebar"] .stMarkdown span,
+    [data-testid="stSidebar"] .stMarkdown div,
+    [data-testid="stSidebar"] .stMarkdown h1,
+    [data-testid="stSidebar"] .stMarkdown h2,
+    [data-testid="stSidebar"] .stMarkdown h3,
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] .stSelectbox,
+    [data-testid="stSidebar"] .stButton,
+    [data-testid="stSidebar"] div {
+        color: white !important;
+    }
+    
+    /* Larger tab labels/buttons */
+    .stTabs button[role="tab"] {
+        font-size: 1.15rem !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Make the tab text more visible */
+    .stTabs button[role="tab"] p {
+        color: #FFFFFF !important;
+    }
+    
+    /* Highlight the active tab more clearly - with blue to match buttons */
+    .stTabs button[role="tab"][aria-selected="true"] {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+        border-bottom-color: #2196F3 !important; /* Blue to match buttons */
+        border-bottom-width: 3px !important;
+    }
+    
+    /* Better form field styling */
+    .stTextInput > div[data-baseweb="input"] > div,
+    .stTextArea > div[data-baseweb="textarea"] > div {
+        border-width: 2px !important;
+        color: #FFFFFF !important;
+    }
+    
+    /* Input field text */
+    input, textarea, .stTextInput input, .stTextArea textarea {
+        color: #FFFFFF !important;
+    }
+    
+    /* Focus styling for form fields */
+    .stTextInput > div[data-baseweb="input"]:focus-within > div,
+    .stTextArea > div[data-baseweb="textarea"]:focus-within > div {
+        border-color: #ff4b4b !important;
+        box-shadow: 0 0 0 1px #ff4b4b !important;
+    }
+    
+    /* Highlight active field */
+    .streamlit-expanderHeader:hover {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+    }
+    
+    /* Make sure headers are especially visible */
+    h1, h2, h3, .stTitle, .stHeader, .stSubheader {
+        color: #FFFFFF !important;
+        font-weight: bold !important;
+    }
+    
+    /* Improve button responsiveness */
+    button[kind="primary"], button[kind="secondary"] {
+        transition: all 0.2s ease !important;
+    }
+    
+    /* Button hover effects to make them more responsive */
+    button[kind="primary"]:hover {
+        background-color: #F4511E !important; /* Darker orange on hover */
+        transform: scale(1.03) !important;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
+    }
+    
+    button[kind="secondary"]:hover {
+        background-color: #BF360C !important; /* Even darker orange on hover */
+        transform: scale(1.03) !important;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
+    }
+    
+    /* Make buttons stand out more - using light red/orange color scheme */
+    button[kind="primary"] {
+        background-color: #FF7043 !important; /* Light red/orange */
+        color: white !important;
+        font-weight: 600 !important;
+    }
+    
+    button[kind="secondary"] {
+        background-color: #E64A19 !important; /* Darker orange */
+        color: white !important;
+        font-weight: 500 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 except Exception as e:
     debug(f"Error setting page config: {str(e)}")
     debug(traceback.format_exc())
@@ -112,65 +262,173 @@ except Exception as e:
     debug(traceback.format_exc())
     st.error(f"Error initializing database: {str(e)}")
 
-# Define sidebar
-st.sidebar.title("Agenteer")
-st.sidebar.markdown("*AI Agent Builder*")
+# Define sidebar - Remove header and use only the subtitle with bright white text
+st.sidebar.markdown("<div style='font-size: 2em; font-weight: bold; margin-bottom: 20px; color: #FFFFFF;'>AI Agent Builder</div>", unsafe_allow_html=True)
 
-# Navigation
+# Add custom CSS for sidebar expander styling with different colors for each
+st.sidebar.markdown("""
+<style>
+/* Style for all expander headers in the sidebar */
+[data-testid="stSidebar"] [data-testid="stExpander"] {
+    margin-bottom: 0.5rem;
+}
+
+/* Base style for all expander headers */
+[data-testid="stSidebar"] [data-testid="stExpander"] > div:first-child {
+    border-radius: 4px !important;
+    transition: background-color 0.3s ease !important;
+    padding: 0.5rem !important;
+}
+
+/* Make expander label text white and bold */
+[data-testid="stSidebar"] [data-testid="stExpander"] p {
+    color: #FFFFFF !important;
+    font-weight: bold !important;
+    font-size: 1.1em !important;
+}
+
+/* Default style for buttons in sidebar */
+[data-testid="stSidebar"] button[kind="primary"] {
+    background-color: #FF7043 !important; /* Light red/orange */
+}
+
+/* Button hover effects for sidebar */
+[data-testid="stSidebar"] button[kind="primary"]:hover {
+    background-color: #F4511E !important; /* Darker orange on hover */
+}
+</style>
+""", unsafe_allow_html=True)
+
+# Get counts for UI elements but don't show navigation control
 with get_db_session() as db:
     agent_count = db.query(Agent).count()
     doc_count = db.query(DocumentationPage).count()
 
-# Define the page options with the base names
-page_base_names = ["Home", "Create Agent", "My Agents", "Documentation", "Web Search", "Settings"]
-# Create display versions with counts
-page_options = [
-    "Home", 
-    "Create Agent", 
-    f"My Agents ({agent_count})", 
-    f"Documentation ({doc_count})", 
-    "Web Search", 
-    "Settings"
-]
+# Style for Navigation expander - Light Orange
+st.markdown("""
+<style>
+/* Navigation expander - Light Orange */
+[data-testid="stSidebar"] [data-testid="stExpander"]:nth-of-type(1) > div:first-child {
+    background-color: #FF9800 !important; /* Light Orange */
+}
 
-# Get the current page index based on the base name
-current_page_index = 0
-for i, base_name in enumerate(page_base_names):
-    if st.session_state.page == base_name:
-        current_page_index = i
-        break
+/* Navigation expander hover - Brighter Orange */
+[data-testid="stSidebar"] [data-testid="stExpander"]:nth-of-type(1) > div:first-child:hover {
+    background-color: #FFA726 !important; /* Brighter Orange */
+}
+</style>
+""", unsafe_allow_html=True)
 
-selected_page = st.sidebar.selectbox(
-    "Navigation",
-    page_options,
-    index=current_page_index,
-    key="sidebar_nav"
-)
-
-# Handle navigation from sidebar - map back to base names
-for i, display_name in enumerate(page_options):
-    if selected_page == display_name and page_base_names[i] != st.session_state.page:
-        navigate_to(page_base_names[i])
-        break
-
-# Get Started dropdown in sidebar
-with st.sidebar.expander("Get Started"):
-    st.markdown("""
-    - **Create Agent**: Create a new AI agent from scratch
-    - **My Agents**: View and interact with your existing agents
-    - **Documentation**: Manage documentation for agent creation
-    - **Web Search**: Crawl and index web documentation
-    - **Settings**: Configure Agenteer settings
-    """)
+# Navigation dropdown in sidebar with clickable links and descriptions
+with st.sidebar.expander("Navigation"):
+    # Agenteer Main page section
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        st.button("▶", key="home_btn", help="Go to Main Page", type="primary")  # Blue button
+    with col2:
+        st.markdown("**Agenteer**")
+        st.markdown("<span style='color:#FFFFFF; font-size:0.9em; font-weight:500;'>Main Page</span>", unsafe_allow_html=True)
+    if st.session_state.get("home_btn"):
+        navigate_to("Home")
+    
+    st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
+    
+    # Create Agent section
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        st.button("▶", key="create_agent_btn", help="Go to Create Agent", type="primary")  # Blue button
+    with col2:
+        st.markdown("**Create Agent**")
+        st.markdown("<span style='color:#FFFFFF; font-size:0.9em; font-weight:500;'>Create a new AI agent from scratch</span>", unsafe_allow_html=True)
+    if st.session_state.get("create_agent_btn"):
+        navigate_to("Create Agent")
+    
+    st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
+    
+    # My Agents section
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        st.button("▶", key="my_agents_btn", help="Go to My Agents", type="primary")  # Blue button
+    with col2:
+        st.markdown("**Existing Agents**")
+        st.markdown("<span style='color:#FFFFFF; font-size:0.9em; font-weight:500;'>View and interact with your existing agents</span>", unsafe_allow_html=True)
+    if st.session_state.get("my_agents_btn"):
+        navigate_to("My Agents")
+    
+    st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
+    
+    # Documentation section
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        st.button("▶", key="documentation_btn", help="Go to Documentation", type="primary")  # Blue button
+    with col2:
+        st.markdown("**Documentation**")
+        st.markdown("<span style='color:#FFFFFF; font-size:0.9em; font-weight:500;'>Manage documentation for agent creation</span>", unsafe_allow_html=True)
+    if st.session_state.get("documentation_btn"):
+        navigate_to("Documentation")
+    
+    st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
+    
+    # Web Search section
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        st.button("▶", key="web_search_btn", help="Go to Web Search", type="primary")  # Blue button
+    with col2:
+        st.markdown("**Web Search**")
+        st.markdown("<span style='color:#FFFFFF; font-size:0.9em; font-weight:500;'>Crawl and index web documentation</span>", unsafe_allow_html=True)
+    if st.session_state.get("web_search_btn"):
+        navigate_to("Web Search")
+    
+    st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
+    
+    # Settings section
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        st.button("▶", key="settings_btn", help="Go to Settings", type="primary")  # Blue button
+    with col2:
+        st.markdown("**Settings**")
+        st.markdown("<span style='color:#FFFFFF; font-size:0.9em; font-weight:500;'>Configure Agenteer settings</span>", unsafe_allow_html=True)
+    if st.session_state.get("settings_btn"):
+        navigate_to("Settings")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### System Status")
+
+# Style for Database expander - Light Blue
+st.markdown("""
+<style>
+/* Database expander - Light Blue */
+[data-testid="stSidebar"] [data-testid="stExpander"]:nth-of-type(2) > div:first-child {
+    background-color: #2196F3 !important; /* Light Blue */
+}
+
+/* Database expander hover - Brighter Blue */
+[data-testid="stSidebar"] [data-testid="stExpander"]:nth-of-type(2) > div:first-child:hover {
+    background-color: #42A5F5 !important; /* Brighter Blue */
+}
+</style>
+""", unsafe_allow_html=True)
 
 # Database info
 with st.sidebar.expander("Database"):
     st.info(f"Location: {settings.database_url}")
     st.metric("Agents", agent_count)
     st.metric("Documentation Pages", doc_count)
+
+# Style for Models expander - Light Blue
+st.markdown("""
+<style>
+/* Models expander - Light Blue */
+[data-testid="stSidebar"] [data-testid="stExpander"]:nth-of-type(3) > div:first-child {
+    background-color: #2196F3 !important; /* Light Blue */
+}
+
+/* Models expander hover - Brighter Blue */
+[data-testid="stSidebar"] [data-testid="stExpander"]:nth-of-type(3) > div:first-child:hover {
+    background-color: #42A5F5 !important; /* Brighter Blue */
+}
+</style>
+""", unsafe_allow_html=True)
 
 # Model info
 with st.sidebar.expander("Models"):
@@ -220,84 +478,174 @@ if st.session_state.navigation_action:
 
 # Home page
 if st.session_state.page == "Home":
-    col1, col2 = st.columns([3, 2])
-    with col1:
-        st.title("Agenteer")
-    with col2:
-        st.markdown("<div style='margin-top: 35px; font-size: 1.2em; color: #666;'>A streamlined AI agent builder</div>", unsafe_allow_html=True)
+    # Larger title without subtitle
+    st.markdown("""
+    <div style='margin-bottom: 25px;'>
+        <h1 style='margin: 0; padding: 0; color: #FFFFFF; font-size: 3.5rem; font-weight: bold; text-align: center;'>Agenteer</h1>
+    </div>
+    """, unsafe_allow_html=True)
     
-    # Quick actions directly under title
+    # Quick actions directly under title with colored buttons
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        if st.button("Create New Agent", use_container_width=True, key="home_create_btn"):
+        if st.button("Create New Agent", 
+                    use_container_width=True, 
+                    key="home_create_btn",
+                    type="primary"):  # Blue primary button
             navigate_to("Create Agent")
     
     with col2:
-        if st.button("Browse Agents", use_container_width=True, key="home_browse_btn"):
+        if st.button("Existing Agents", 
+                    use_container_width=True, 
+                    key="home_browse_btn",
+                    type="primary"):  # Changed to primary blue
             navigate_to("My Agents")
     
     with col3:
-        if st.button("Manage Documentation", use_container_width=True, key="home_docs_btn"):
+        if st.button("Documentation", 
+                    use_container_width=True, 
+                    key="home_docs_btn",
+                    type="primary"):  # Changed to primary blue 
             navigate_to("Documentation")
             
     with col4:
-        if st.button("Web Search", use_container_width=True, key="home_crawl_btn"):
+        if st.button("Web Search", 
+                    use_container_width=True, 
+                    key="home_crawl_btn",
+                    type="primary"):  # Blue primary button
             navigate_to("Web Search")
     
-    # Recent activity - putting header and buttons on same line
-    col1, col2, col3 = st.columns([3, 1, 1])
-    with col1:
-        st.subheader("Recent Activity")
-    with col2:
-        if st.button("Clear", key="clear_activity_btn", use_container_width=True):
-            st.session_state.clear_activity = True
-    with col3:
-        if hasattr(st.session_state, "clear_activity") and st.session_state.clear_activity:
-            if st.button("Restore", key="restore_activity_btn", use_container_width=True):
-                st.session_state.clear_activity = False
-            
-    # Check if we should show activity
-    if not hasattr(st.session_state, "clear_activity") or not st.session_state.clear_activity:
+    # Styling for Recent Activity expander - Green
+    st.markdown("""
+    <style>
+    /* Style for Recent Activity expander in main content */
+    [data-testid="stExpander"] {
+        margin-bottom: 1rem;
+    }
+    
+    /* Recent Activity expander - Green */
+    div:not([data-testid="stSidebar"]) [data-testid="stExpander"] > div:first-child {
+        background-color: #4CAF50 !important; /* Green */
+        border-radius: 4px !important;
+        transition: background-color 0.3s ease !important;
+        padding: 0.5rem !important;
+    }
+    
+    /* Recent Activity expander hover - Brighter Green */
+    div:not([data-testid="stSidebar"]) [data-testid="stExpander"] > div:first-child:hover {
+        background-color: #66BB6A !important; /* Brighter Green */
+    }
+    
+    /* Make expander label text white and bold */
+    div:not([data-testid="stSidebar"]) [data-testid="stExpander"] p {
+        color: #FFFFFF !important;
+        font-weight: bold !important;
+        font-size: 1.1em !important;
+    }
+    
+    /* Keep all buttons inside main content orange */
+    div:not([data-testid="stSidebar"]) button[kind="primary"] {
+        background-color: #FF7043 !important; /* Light red/orange */
+        color: white !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Orange button hover effects */
+    div:not([data-testid="stSidebar"]) button[kind="primary"]:hover {
+        background-color: #F4511E !important; /* Darker orange on hover */
+        transform: scale(1.03) !important;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Recent activity section (closed by default, green with white title)
+    with st.expander("Recent Activity", expanded=False):
         with get_db_session() as db:
             recent_executions = (
                 db.query(AgentExecution)
                 .order_by(AgentExecution.started_at.desc())
                 .limit(5)
                 .all()
-        )
-        
-        if not recent_executions:
-            st.info("No recent activity. Create an agent and start interacting with it!")
-        else:
-            for execution in recent_executions:
-                agent = db.query(Agent).filter(Agent.id == execution.agent_id).first()
-                
-                if agent:
-                    with st.expander(f"{agent.name} - {execution.started_at.strftime('%Y-%m-%d %H:%M')}"):
-                        messages = (
-                            db.query(AgentMessage)
-                            .filter(AgentMessage.execution_id == execution.id)
-                            .order_by(AgentMessage.timestamp)
-                            .all()
-                        )
+            )
+            
+            if not recent_executions:
+                st.info("No recent activity. Create an agent and start interacting with it!")
+            else:
+                # Initialize session state for detailed view
+                if "show_detail_for_execution" not in st.session_state:
+                    st.session_state.show_detail_for_execution = None
+                    
+                # Check if a dialog is currently open, if not show the list
+                if st.session_state.show_detail_for_execution is None:
+                    for execution in recent_executions:
+                        agent = db.query(Agent).filter(Agent.id == execution.agent_id).first()
                         
-                        for message in messages:
-                            if message.role == "user":
-                                st.markdown(f"**User**: {message.content}")
-                            elif message.role == "assistant":
-                                st.markdown(f"**{agent.name}**: {message.content}")
-                            elif message.role == "tool":
-                                st.markdown(f"**Tool ({message.tool_name})**: {message.tool_output}")
-    else:
-        st.info("Activity log cleared. Create a new agent or run an existing one to see new activity.")
-        # Add button to restore activity
-        if st.button("Restore Activity"):
-            st.session_state.clear_activity = False
+                        if agent:
+                            # Create row for each execution with button and text
+                            col1, col2 = st.columns([1, 5])
+                            
+                            with col1:
+                                # Button to open detail dialog
+                                btn_key = f"open_detail_{execution.id}"
+                                if st.button("📋", key=btn_key, help="View Details"):
+                                    st.session_state.show_detail_for_execution = execution.id
+                                    st.rerun()
+                            
+                            with col2:
+                                # Just show the title/date
+                                st.markdown(f"**{agent.name}** - {execution.started_at.strftime('%Y-%m-%d %H:%M')}")
+                            
+                            # Add a divider
+                            st.markdown("<hr style='margin: 5px 0px; border-width: 1px;'>", unsafe_allow_html=True)
+                
+                # If a detail dialog is open, show it as a "modal"
+                else:
+                    execution_id = st.session_state.show_detail_for_execution
+                    execution = db.query(AgentExecution).filter(AgentExecution.id == execution_id).first()
+                    
+                    if execution:
+                        agent = db.query(Agent).filter(Agent.id == execution.agent_id).first()
+                        
+                        if agent:
+                            # Create a container that looks like a modal dialog
+                            with st.container():
+                                # Dialog header with title and close button
+                                col1, col2 = st.columns([5, 1])
+                                
+                                with col1:
+                                    st.markdown(f"## {agent.name} - {execution.started_at.strftime('%Y-%m-%d %H:%M')}")
+                                
+                                with col2:
+                                    # Close button
+                                    if st.button("❌ Close", type="primary"):
+                                        st.session_state.show_detail_for_execution = None
+                                        st.rerun()
+                                
+                                # Dialog content - all messages
+                                messages = (
+                                    db.query(AgentMessage)
+                                    .filter(AgentMessage.execution_id == execution_id)
+                                    .order_by(AgentMessage.timestamp)
+                                    .all()
+                                )
+                                
+                                st.markdown("### Conversation")
+                                for message in messages:
+                                    if message.role == "user":
+                                        st.markdown(f"**User**: {message.content}")
+                                    elif message.role == "assistant":
+                                        st.markdown(f"**{agent.name}**: {message.content}")
+                                    elif message.role == "tool":
+                                        st.markdown(f"**Tool ({message.tool_name})**: {message.tool_output}")
+                                
+                                # Return button at bottom
+                                st.button("Return to Activities", on_click=lambda: setattr(st.session_state, "show_detail_for_execution", None))
 
 # Create Agent page
 elif st.session_state.page == "Create Agent":
-    st.title("Create New Agent")
+    st.title("Create Agent")
     
     with st.form("create_agent_form"):
         name = st.text_input("Agent Name", placeholder="my_weather_agent")
@@ -532,9 +880,9 @@ elif st.session_state.page == "Create Agent":
                     except Exception as e:
                         st.error(f"Error creating agent: {str(e)}")
 
-# My Agents page
+# My Agents page (renamed to Existing Agents for consistency)
 elif st.session_state.page == "My Agents":
-    st.title("My Agents")
+    st.title("Existing Agents")
     
     # Get agents from database
     with get_db_session() as db:
@@ -744,7 +1092,7 @@ elif st.session_state.page == "My Agents":
 
 # Documentation page
 elif st.session_state.page == "Documentation":
-    st.title("Documentation Management")
+    st.title("Documentation")
     
     # Tabs for different documentation views
     tabs = st.tabs(["Search", "Crawl", "Browse"])
@@ -910,10 +1258,17 @@ elif st.session_state.page == "Web Search":
             
             max_depth = st.slider("Maximum Depth", 
                                  min_value=1, 
-                                 max_value=5, 
+                                 max_value=20,  # Increased from 5 to 20
                                  value=3, 
                                  step=1,
                                  help="Maximum link depth to crawl")
+                                 
+            timeout = st.slider("Time Out (seconds)", 
+                               min_value=0, 
+                               max_value=120, 
+                               value=10, 
+                               step=5,
+                               help="Maximum time to wait for a page to load before timing out")
         
         with col2:
             file_types = st.multiselect("File Types",
@@ -925,18 +1280,36 @@ elif st.session_state.page == "Web Search":
                                       value=False,
                                       help="If enabled, the crawler will follow links to external domains")
     
-    # Start crawling button
-    if st.button("Start Crawling", type="primary"):
+    # Start crawling button with prominent color
+    if st.button("Start Crawling", 
+                type="primary",  # Ensure it has primary blue color
+                use_container_width=False):  # Not full width for emphasis
         with st.spinner(f"Crawling {crawl_source} documentation..."):
             try:
                 if crawl_source == "All Sources":
-                    pages_crawled = asyncio.run(crawl_all_docs(max_pages=max_pages))
+                    pages_crawled = asyncio.run(crawl_all_docs(
+                        max_pages=max_pages, 
+                        max_depth=max_depth, 
+                        timeout=timeout
+                    ))
                 elif crawl_source == "Pydantic AI":
-                    pages_crawled = asyncio.run(crawl_pydantic_ai_docs(max_pages=max_pages))
+                    pages_crawled = asyncio.run(crawl_pydantic_ai_docs(
+                        max_pages=max_pages, 
+                        max_depth=max_depth, 
+                        timeout=timeout
+                    ))
                 elif crawl_source == "LangChain":
-                    pages_crawled = asyncio.run(crawl_langchain_docs(max_pages=max_pages))
+                    pages_crawled = asyncio.run(crawl_langchain_docs(
+                        max_pages=max_pages, 
+                        max_depth=max_depth, 
+                        timeout=timeout
+                    ))
                 elif crawl_source == "Anthropic":
-                    pages_crawled = asyncio.run(crawl_anthropic_docs(max_pages=max_pages))
+                    pages_crawled = asyncio.run(crawl_anthropic_docs(
+                        max_pages=max_pages, 
+                        max_depth=max_depth, 
+                        timeout=timeout
+                    ))
                 elif crawl_source == "Custom URL" and custom_url:
                     # Custom URL crawling would need to be implemented
                     st.warning("Custom URL crawling is not yet implemented")
