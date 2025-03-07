@@ -9,6 +9,10 @@ from rich.table import Table
 from rich import print as rprint
 import os
 import sys
+import json
+import asyncio
+from datetime import datetime
+from pathlib import Path
 
 from agenteer.utils.config.settings import settings
 from agenteer.core.database.engine import init_db
@@ -73,7 +77,7 @@ def init(
                 console.print("[yellow]⚠ No LLM API keys or local models detected.[/yellow]")
                 console.print("  Set at least one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, or ensure Ollama is running.")
         
-        console.print("[bold green]Agenteer initialized successfully\![/bold green]")
+        console.print("[bold green]Agenteer initialized successfully![/bold green]")
         
     except Exception as e:
         console.print(f"[bold red]Error during initialization: {str(e)}[/bold red]")
@@ -97,7 +101,9 @@ def ui(
         console.print(f"[bold green]Starting Agenteer UI on http://{host}:{port} ...[/bold green]")
         
         # Run Streamlit app
-        sys.argv = ["streamlit", "run", f"{settings.app_root}/agenteer/ui/app.py", "--server.port", str(port), "--server.address", host]
+        ui_path = str(Path(__file__).parent.parent / "ui" / "app.py")
+        console.print(f"Starting Streamlit with path: {ui_path}")
+        sys.argv = ["streamlit", "run", ui_path, "--server.port", str(port), "--server.address", host]
         stcli.main()
         
     except ImportError:
@@ -113,12 +119,13 @@ def create(
     name: str = typer.Option(..., "--name", "-n", help="Name for the agent"),
     description: str = typer.Option(None, "--description", "-d", help="Description for the agent"),
     model: str = typer.Option(None, "--model", "-m", help="Model to use (defaults to settings)"),
+    agent_type: str = typer.Option("standard", "--type", "-t", help="Type of agent to create (standard, github)"),
 ):
     """Create a new AI agent with the given specifications."""
     try:
-        from agenteer.core.agents.generator import AgentGenerator
+        from agenteer.core.agents.generator import AgentGenerator, generate_agent
         from agenteer.core.database.engine import get_db_session
-        from agenteer.core.database.models import Agent
+        from agenteer.core.database.models import Agent, AgentFile, AgentTool
         
         # Initialize database if not exists
         if not os.path.exists(settings.database_url.replace("sqlite:///", "")):
@@ -135,15 +142,28 @@ def create(
             console.print(f"[bold red]Model '{model}' not available. Available models:[/bold red]\n{available}")
             raise typer.Exit(1)
         
-        # Create agent
-        with console.status(f"[bold green]Creating agent '{name}'..."):
-            # Initialize agent generator
-            generator = AgentGenerator(model=model)
+        # Validate agent type
+        valid_types = ["standard", "github"]
+        if agent_type not in valid_types:
+            console.print(f"[bold red]Invalid agent type: {agent_type}. Valid types: {', '.join(valid_types)}[/bold red]")
+            raise typer.Exit(1)
+        
+        # Check if creating GitHub agent and validate requirements
+        if agent_type == "github" and not settings.has_github:
+            console.print("[bold yellow]Warning: GitHub API token not configured.[/bold yellow]")
+            console.print("Set GITHUB_API_TOKEN and GITHUB_USERNAME in your .env file for GitHub agent to work.")
             
-            # Generate agent
-            agent_data = generator.generate(
+            if not typer.confirm("Continue anyway?"):
+                raise typer.Exit(0)
+        
+        # Create agent
+        with console.status(f"[bold green]Creating {agent_type} agent '{name}'..."):
+            # Generate agent data
+            agent_data = generate_agent(
                 name=name,
-                description=description or f"An AI assistant named {name}"
+                description=description or f"An AI assistant named {name}",
+                model_name=model,
+                agent_type=agent_type
             )
             
             # Save agent to database
@@ -170,20 +190,38 @@ def create(
                 
                 # Save agent tools
                 for tool_data in agent_data["tools"]:
+                    # For GitHub agent, function_def may already be a string
+                    function_def = tool_data["function_def"]
+                    if not isinstance(function_def, str):
+                        function_def = json.dumps(function_def)
+                    
                     tool = AgentTool(
                         agent_id=agent.id,
                         name=tool_data["name"],
                         description=tool_data["description"],
-                        function_def=json.dumps(tool_data["function_def"])
+                        function_def=function_def
                     )
                     db.add(tool)
                 
                 db.commit()
+                # Store ID before closing session
+                agent_id = agent.id
         
-        console.print(f"[bold green]Agent '{name}' created successfully with ID {agent.id}\![/bold green]")
+        console.print(f"[bold green]{agent_type.capitalize()} agent '{name}' created successfully with ID {agent_id}![/bold green]")
         
-    except Exception as e:
-        console.print(f"[bold red]Error creating agent: {str(e)}[/bold red]")
+        # Special instructions for GitHub agent
+        if agent_type == "github":
+            console.print("\n[bold cyan]GitHub Agent Setup Instructions:[/bold cyan]")
+            console.print("1. Make sure you have a GitHub personal access token with appropriate permissions")
+            console.print("2. Set these environment variables in your .env file:")
+            console.print("   - GITHUB_API_TOKEN=your_token_here")
+            console.print("   - GITHUB_USERNAME=your_username_here\n")
+            console.print(f"Run the agent with: [bold]agenteer run {agent_id} --interactive[/bold]")
+        
+    except Exception as error:
+        console.print(f"[bold red]Error creating agent: {str(error)}[/bold red]")
+        import traceback
+        console.print(f"[dim red]{traceback.format_exc()}[/dim red]")
         raise typer.Exit(1)
 
 
@@ -381,6 +419,11 @@ def status():
             table.add_row("Ollama", "✓", settings.ollama_base_url)
         else:
             table.add_row("Ollama", "✗", f"{settings.ollama_base_url} (not available)")
+            
+        if settings.has_github:
+            table.add_row("GitHub API", "✓", "API token configured")
+        else:
+            table.add_row("GitHub API", "✗", "API token not configured")
         
         # Vector store
         vector_db_exists = os.path.exists(os.path.join(settings.vector_db_path, "faiss.index"))

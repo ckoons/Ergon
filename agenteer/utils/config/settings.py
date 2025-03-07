@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     anthropic_api_key: Optional[str] = None
     ollama_base_url: str = "http://localhost:11434"
     
+    # GitHub API settings
+    github_api_token: Optional[str] = None
+    github_username: Optional[str] = None
+    
     # Model settings
     default_model: str = "gpt-4o-mini"
     use_local_models: bool = False
@@ -86,6 +90,11 @@ class Settings(BaseSettings):
             return response.status_code == 200
         except:
             return False
+            
+    @property
+    def has_github(self) -> bool:
+        """Check if GitHub API token is configured"""
+        return bool(self.github_api_token)
     
     @property
     def available_models(self) -> List[str]:
