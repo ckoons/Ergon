@@ -42,17 +42,42 @@ agenteer create -n "my_agent" -d "A weather agent that fetches forecast data"
 # Build and run with Docker Compose
 docker-compose up -d
 
-# Build with preloaded documentation (Pydantic, LangChain, Anthropic)
-PRELOAD_DOCS=true docker-compose up -d
-
 # Or build and run manually
 docker build -t agenteer .
 docker run -p 8501:8501 -p 8000:8000 agenteer
-
-# Build with preloaded documentation
-docker build --build-arg PRELOAD_DOCS=true -t agenteer .
-docker run -p 8501:8501 -p 8000:8000 agenteer
 ```
+
+### Documentation Preloading
+
+Agenteer offers built-in documentation preloading to enhance agent capabilities. There are several ways to preload documentation:
+
+1. **Via the UI (Recommended)**: 
+   Navigate to the Documentation or Web Search pages in the UI. If no documentation is found, you'll see a "Preload Essential Documentation" button that will automatically crawl and index documentation from Pydantic, LangChain, and Anthropic.
+
+2. **Using the CLI**:
+   ```bash
+   # Preload all documentation sources
+   agenteer preload-docs
+
+   # Preload a specific source
+   agenteer preload-docs --source pydantic
+   agenteer preload-docs --source langchain
+   agenteer preload-docs --source anthropic
+
+   # Customize crawling settings
+   agenteer preload-docs --max-pages 500 --max-depth 4 --timeout 300
+   ```
+
+3. **With Docker**:
+   ```bash
+   # Preload all documentation sources
+   docker run agenteer preload-docs
+
+   # Preload a specific source
+   docker run agenteer preload-docs --source langchain
+   ```
+
+The preloaded documentation enables agents to leverage knowledge from these frameworks when responding to queries, making them more effective for framework-specific tasks.
 
 ## Requirements
 

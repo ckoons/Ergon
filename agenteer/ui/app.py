@@ -1101,22 +1101,61 @@ elif st.session_state.page == "Documentation":
     with tabs[0]:
         st.subheader("Search Documentation")
         
-        search_query = st.text_input("Search Query")
+        # Check if we have any documentation
+        with get_db_session() as db:
+            total_docs = db.query(DocumentationPage).count()
         
-        if search_query:
-            with st.spinner("Searching..."):
-                vector_store = FAISSDocumentStore()
-                results = vector_store.search(search_query, top_k=5)
-                
-                if not results:
-                    st.info("No results found. Try crawling some documentation first.")
-                else:
-                    for i, result in enumerate(results):
-                        with st.expander(f"{i+1}. {result['metadata'].get('title', 'Untitled')} (Score: {result['score']:.2f})"):
-                            st.markdown(f"**Source**: {result['metadata'].get('source', 'Unknown')}")
-                            st.markdown(f"**URL**: {result['metadata'].get('url', 'Unknown')}")
-                            st.markdown("**Content**:")
-                            st.markdown(result['content'][:500] + "..." if len(result['content']) > 500 else result['content'])
+        if total_docs == 0:
+            st.warning("No documentation found in the database.")
+            st.info("Go to the **Crawl** tab to preload documentation before searching.")
+            
+            # Add quick action button to preload docs
+            if st.button("Preload Essential Documentation", 
+                        type="primary",
+                        help="Preload Pydantic, LangChain, and Anthropic documentation"):
+                with st.spinner("Preloading documentation from Pydantic, LangChain, and Anthropic..."):
+                    try:
+                        # Run documentation preloading with longer timeout
+                        pydantic_pages = asyncio.run(crawl_pydantic_ai_docs(
+                            max_pages=300, max_depth=3, timeout=600  # 10 minute timeout
+                        ))
+                        st.success(f"Indexed {pydantic_pages} Pydantic documentation pages")
+                        
+                        langchain_pages = asyncio.run(crawl_langchain_docs(
+                            max_pages=300, max_depth=3, timeout=600  # 10 minute timeout
+                        ))
+                        st.success(f"Indexed {langchain_pages} LangChain documentation pages")
+                        
+                        anthropic_pages = asyncio.run(crawl_anthropic_docs(
+                            max_pages=300, max_depth=3, timeout=600  # 10 minute timeout
+                        ))
+                        st.success(f"Indexed {anthropic_pages} Anthropic documentation pages")
+                        
+                        total_pages = pydantic_pages + langchain_pages + anthropic_pages
+                        st.success(f"Documentation preloading complete! Indexed {total_pages} pages.")
+                        
+                        # Set a flag to refresh this panel
+                        st.session_state.navigation_action = "refresh_after_crawl"
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error preloading documentation: {str(e)}")
+        else:
+            search_query = st.text_input("Search Query")
+            
+            if search_query:
+                with st.spinner("Searching..."):
+                    vector_store = FAISSDocumentStore()
+                    results = vector_store.search(search_query, top_k=5)
+                    
+                    if not results:
+                        st.info("No results found. Try crawling some documentation first.")
+                    else:
+                        for i, result in enumerate(results):
+                            with st.expander(f"{i+1}. {result['metadata'].get('title', 'Untitled')} (Score: {result['score']:.2f})"):
+                                st.markdown(f"**Source**: {result['metadata'].get('source', 'Unknown')}")
+                                st.markdown(f"**URL**: {result['metadata'].get('url', 'Unknown')}")
+                                st.markdown("**Content**:")
+                                st.markdown(result['content'][:500] + "..." if len(result['content']) > 500 else result['content'])
     
     # Crawl tab
     with tabs[1]:
@@ -1179,42 +1218,81 @@ elif st.session_state.page == "Documentation":
         st.subheader("Browse Documentation")
         
         with get_db_session() as db:
-            # Source filter
-            sources = [
-                r[0] for r in 
-                db.query(DocumentationPage.source)
-                .distinct()
-                .all()
-            ]
+            # Count total documentation
+            total_docs = db.query(DocumentationPage).count()
             
-            selected_source = st.selectbox("Filter by Source", ["All Sources"] + sources)
-            
-            # Query for documents
-            if selected_source == "All Sources":
-                docs = (
-                    db.query(DocumentationPage)
-                    .order_by(DocumentationPage.title)
-                    .limit(100)
-                    .all()
-                )
+            if total_docs == 0:
+                st.warning("No documentation found in the database.")
+                st.info("Go to the **Crawl** tab to preload documentation before browsing.")
+                
+                # Add quick action button to preload docs
+                if st.button("Preload Essential Documentation", 
+                            type="primary",
+                            key="browse_preload_button",
+                            help="Preload Pydantic, LangChain, and Anthropic documentation"):
+                    with st.spinner("Preloading documentation from Pydantic, LangChain, and Anthropic..."):
+                        try:
+                            # Run documentation preloading with longer timeout
+                            pydantic_pages = asyncio.run(crawl_pydantic_ai_docs(
+                                max_pages=300, max_depth=3, timeout=600  # 10 minute timeout
+                            ))
+                            st.success(f"Indexed {pydantic_pages} Pydantic documentation pages")
+                            
+                            langchain_pages = asyncio.run(crawl_langchain_docs(
+                                max_pages=300, max_depth=3, timeout=600  # 10 minute timeout
+                            ))
+                            st.success(f"Indexed {langchain_pages} LangChain documentation pages")
+                            
+                            anthropic_pages = asyncio.run(crawl_anthropic_docs(
+                                max_pages=300, max_depth=3, timeout=600  # 10 minute timeout
+                            ))
+                            st.success(f"Indexed {anthropic_pages} Anthropic documentation pages")
+                            
+                            total_pages = pydantic_pages + langchain_pages + anthropic_pages
+                            st.success(f"Documentation preloading complete! Indexed {total_pages} pages.")
+                            
+                            # Set a flag to refresh this panel
+                            st.session_state.navigation_action = "refresh_after_crawl"
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error preloading documentation: {str(e)}")
             else:
-                docs = (
-                    db.query(DocumentationPage)
-                    .filter(DocumentationPage.source == selected_source)
-                    .order_by(DocumentationPage.title)
-                    .limit(100)
+                # Source filter
+                sources = [
+                    r[0] for r in 
+                    db.query(DocumentationPage.source)
+                    .distinct()
                     .all()
-                )
-            
-            if not docs:
-                st.info("No documentation found. Try crawling some documentation first.")
-            else:
-                for doc in docs:
-                    with st.expander(doc.title or "Untitled"):
-                        st.markdown(f"**Source**: {doc.source}")
-                        st.markdown(f"**URL**: [{doc.url}]({doc.url})")
-                        st.markdown("**Content**:")
-                        st.markdown(doc.content[:500] + "..." if len(doc.content) > 500 else doc.content)
+                ]
+                
+                selected_source = st.selectbox("Filter by Source", ["All Sources"] + sources)
+                
+                # Query for documents
+                if selected_source == "All Sources":
+                    docs = (
+                        db.query(DocumentationPage)
+                        .order_by(DocumentationPage.title)
+                        .limit(100)
+                        .all()
+                    )
+                else:
+                    docs = (
+                        db.query(DocumentationPage)
+                        .filter(DocumentationPage.source == selected_source)
+                        .order_by(DocumentationPage.title)
+                        .limit(100)
+                        .all()
+                    )
+                
+                if not docs:
+                    st.info("No documentation found for the selected source. Try selecting another source.")
+                else:
+                    for doc in docs:
+                        with st.expander(doc.title or "Untitled"):
+                            st.markdown(f"**Source**: {doc.source}")
+                            st.markdown(f"**URL**: [{doc.url}]({doc.url})")
+                            st.markdown("**Content**:")
+                            st.markdown(doc.content[:500] + "..." if len(doc.content) > 500 else doc.content)
 
 # Web Search page
 elif st.session_state.page == "Web Search":
@@ -1346,6 +1424,39 @@ elif st.session_state.page == "Web Search":
                 st.markdown("**Pages by Source**:")
                 for source, count in sources:
                     st.markdown(f"- {source}: {count} pages")
+            elif total_docs == 0:
+                st.warning("No documentation found in the database.")
+                
+                # Show preload button for easy onboarding
+                if st.button("Preload Essential Documentation", 
+                           type="primary",
+                           help="Preload Pydantic, LangChain, and Anthropic documentation"):
+                    with st.spinner("Preloading documentation from Pydantic, LangChain, and Anthropic..."):
+                        try:
+                            # Run documentation preloading with longer timeout
+                            pydantic_pages = asyncio.run(crawl_pydantic_ai_docs(
+                                max_pages=300, max_depth=3, timeout=600  # 10 minute timeout
+                            ))
+                            st.success(f"Indexed {pydantic_pages} Pydantic documentation pages")
+                            
+                            langchain_pages = asyncio.run(crawl_langchain_docs(
+                                max_pages=300, max_depth=3, timeout=600  # 10 minute timeout
+                            ))
+                            st.success(f"Indexed {langchain_pages} LangChain documentation pages")
+                            
+                            anthropic_pages = asyncio.run(crawl_anthropic_docs(
+                                max_pages=300, max_depth=3, timeout=600  # 10 minute timeout
+                            ))
+                            st.success(f"Indexed {anthropic_pages} Anthropic documentation pages")
+                            
+                            total_pages = pydantic_pages + langchain_pages + anthropic_pages
+                            st.success(f"Documentation preloading complete! Indexed {total_pages} pages.")
+                            
+                            # Set a flag to refresh this panel
+                            st.session_state.navigation_action = "refresh_after_crawl"
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error preloading documentation: {str(e)}")
         
         with col2:
             # Last crawl time would be stored in settings or database
