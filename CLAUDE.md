@@ -60,24 +60,78 @@ The Agenteer UI is built with Streamlit and organized into several pages:
 ## Common Commands
 
 ```bash
-# Start the UI
-streamlit run agenteer/ui/app.py
+# Start the UI (standard)
+agenteer ui
+
+# Start the UI with suppressed PyTorch warnings
+./run_ui.sh
 
 # Run the CLI
-python -m agenteer.cli.main --help
+agenteer --help
 
 # Create a new agent
-python -m agenteer.cli.main create -n "AgentName" -d "Description" -t standard
+agenteer create -n "AgentName" -d "Description" -t standard
 
 # Create a GitHub agent
-python -m agenteer.cli.main create -n "GitHubAgent" -d "Description" -t github
+agenteer create -n "GitHubAgent" -d "Description" -t github
 
 # List all agents
-python -m agenteer.cli.main list
+agenteer list
 
 # Run an agent
-python -m agenteer.cli.main run AGENT_ID -i "Your input here"
+agenteer run AGENT_ID -i "Your input here"
+
+# Preload documentation
+agenteer preload-docs --source anthropic
+
+# Check system status
+agenteer status
 ```
+
+## Docker and Platform Compatibility
+
+### Docker Commands
+
+```bash
+# Build Docker image for Apple Silicon (ARM64)
+docker build --platform linux/arm64 -t agenteer .
+
+# Build Docker image for Intel/AMD (AMD64)
+docker build --platform linux/amd64 -t agenteer .
+
+# Run UI in Docker
+docker run --platform linux/arm64 -p 8501:8501 agenteer ui
+
+# Run CLI commands in Docker
+docker run --platform linux/arm64 agenteer preload-docs
+docker run --platform linux/arm64 agenteer status
+
+# Run with persistent data volume
+docker volume create agenteer-data
+docker run --platform linux/arm64 -v agenteer-data:/data -p 8501:8501 agenteer ui
+```
+
+### Platform-Specific Notes
+
+#### macOS (Apple Silicon)
+- Always use `--platform linux/arm64` for Docker commands
+- Install Xcode Command Line Tools: `xcode-select --install`
+- Use `./run_ui.sh` script to suppress PyTorch warnings
+
+#### macOS (Intel)
+- Use `--platform linux/amd64` for Docker commands 
+- Install Xcode Command Line Tools: `xcode-select --install`
+- Use `./run_ui.sh` script to suppress PyTorch warnings
+
+#### Windows
+- Use WSL2 for best compatibility
+- Install Docker Desktop for Windows
+- Running UI: `python -m agenteer.cli.main ui`
+
+#### Linux
+- Install Python 3.10+ and venv
+- Follow standard installation process
+- No special considerations needed
 
 ## Documentation Management
 
@@ -123,6 +177,35 @@ python -m agenteer.cli.main run AGENT_ID -i "Your input here"
 - Preload only documentation relevant to your current project
 - Run preloading during off-hours for large documentation sets
 - Verify loaded documentation by checking status
+
+## Troubleshooting
+
+### Common Issues
+
+#### PyTorch Warnings
+If you see warnings like `RuntimeError: Tried to instantiate class '__path__._path'...`:
+- This is a known issue with PyTorch and Streamlit's file watcher
+- Use the `./run_ui.sh` script which suppresses these warnings
+- Install watchdog: `pip install watchdog`
+
+#### Documentation Crawling Errors
+If you see `Error processing URL...` messages:
+- These are normal when crawling documentation sites
+- Some pages may be unavailable or have moved
+- The crawler will continue with available pages
+- Check network connectivity if all URLs fail
+
+#### Docker "Exec Format Error"
+If you see `exec format error` when running Docker:
+- Make sure to specify the correct platform flag
+- For Apple Silicon: `--platform linux/arm64`
+- For Intel/AMD: `--platform linux/amd64`
+
+#### Port Already In Use
+If you see `Bind for 0.0.0.0:8501 failed: port is already allocated`:
+- Another instance of the UI is already running
+- Run `docker ps` to find and stop the container
+- Or use a different port: `-p 8502:8501`
 
 ## Project Organization
 
