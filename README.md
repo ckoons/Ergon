@@ -43,9 +43,12 @@ agenteer create -n "my_agent" -d "A weather agent that fetches forecast data"
 docker-compose up -d
 
 # Or build and run manually
-docker build -t agenteer .
+docker build --platform linux/arm64 -t agenteer .  # For Apple Silicon Macs
+docker build --platform linux/amd64 -t agenteer .  # For Intel/AMD systems
 docker run -p 8501:8501 -p 8000:8000 agenteer
 ```
+
+> **Note for Apple Silicon Mac users**: Be sure to include the `--platform linux/arm64` flag when building and running Docker images to ensure compatibility.
 
 ### Documentation Preloading
 
@@ -71,10 +74,11 @@ Agenteer offers built-in documentation preloading to enhance agent capabilities.
 3. **With Docker**:
    ```bash
    # Preload all documentation sources
-   docker run agenteer preload-docs
+   docker run --platform linux/arm64 agenteer preload-docs  # For Apple Silicon Macs
+   docker run --platform linux/amd64 agenteer preload-docs  # For Intel/AMD systems
 
    # Preload a specific source
-   docker run agenteer preload-docs --source langchain
+   docker run --platform linux/arm64 agenteer preload-docs --source langchain  # For Apple Silicon
    ```
 
 The preloaded documentation enables agents to leverage knowledge from these frameworks when responding to queries, making them more effective for framework-specific tasks.

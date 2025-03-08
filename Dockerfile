@@ -41,34 +41,15 @@ RUN if [ \! -f .env ]; then cp .env.example .env; fi
 # Create .env.owner file as a template (will be overwritten by volume mount if provided)
 RUN echo '# Owner configuration - this will be overwritten by volume mount if provided\n# See .env.example for available settings' > .env.owner
 
-# Preload documentation if PRELOAD_DOCS build arg is set to true
-ARG PRELOAD_DOCS=false
-RUN if [ "$PRELOAD_DOCS" = "true" ]; then \
-        echo "Preloading documentation..." && \
-        python scripts/preload_docs.py; \
-    else \
-        echo "Skipping documentation preload."; \
-    fi
+# Documentation preloading is handled by the UI when needed
+# No automatic preloading during build to keep image lightweight
 
 # Expose Streamlit port
 EXPOSE 8501
 
-# Create entrypoint script
-RUN echo '#\!/bin/bash\n\
-if [[ "$1" == "ui" ]]; then\n\
-    shift\n\
-    agenteer ui "$@"\n\
-elif [[ "$1" == "api" ]]; then\n\
-    shift\n\
-    uvicorn agenteer.api.app:app --host 0.0.0.0 --port 8000\n\
-elif [[ "$1" == "init" ]]; then\n\
-    shift\n\
-    agenteer init "$@"\n\
-elif [[ "$1" == "preload-docs" ]]; then\n\
-    python scripts/preload_docs.py\n\
-else\n\
-    agenteer "$@"\n\
-fi' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+# Copy entrypoint script
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 # Set entrypoint
 ENTRYPOINT ["/app/entrypoint.sh"]
