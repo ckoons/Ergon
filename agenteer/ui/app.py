@@ -1431,32 +1431,72 @@ elif st.session_state.page == "Web Search":
                 if st.button("Preload Essential Documentation", 
                            type="primary",
                            help="Preload Pydantic, LangChain, and Anthropic documentation"):
-                    with st.spinner("Preloading documentation from Pydantic, LangChain, and Anthropic..."):
-                        try:
-                            # Run documentation preloading with longer timeout
-                            pydantic_pages = asyncio.run(crawl_pydantic_ai_docs(
-                                max_pages=300, max_depth=3, timeout=600  # 10 minute timeout
-                            ))
-                            st.success(f"Indexed {pydantic_pages} Pydantic documentation pages")
+                    try:
+                        # Setup progress tracking
+                        progress_text = "Starting documentation preloading..."
+                        progress_bar = st.progress(0, text=progress_text)
+                        status_area = st.empty()
+                        
+                        # Function to update progress
+                        def update_progress(stage, count, total_stages=3):
+                            stage_progress = (stage - 1) / total_stages
+                            page_progress = count / 300  # Assuming 300 pages max per source
+                            combined_progress = stage_progress + (page_progress / total_stages)
+                            progress_bar.progress(combined_progress, text=progress_text)
+                        
+                        # Run documentation preloading with longer timeout
+                        progress_text = "Preloading Pydantic documentation (Stage 1/3)..."
+                        status_area.info("Crawling Pydantic documentation...")
+                        
+                        # Create a custom crawler with progress callback
+                        class ProgressTracker:
+                            def __init__(self, stage):
+                                self.count = 0
+                                self.stage = stage
                             
-                            langchain_pages = asyncio.run(crawl_langchain_docs(
-                                max_pages=300, max_depth=3, timeout=600  # 10 minute timeout
-                            ))
-                            st.success(f"Indexed {langchain_pages} LangChain documentation pages")
-                            
-                            anthropic_pages = asyncio.run(crawl_anthropic_docs(
-                                max_pages=300, max_depth=3, timeout=600  # 10 minute timeout
-                            ))
-                            st.success(f"Indexed {anthropic_pages} Anthropic documentation pages")
-                            
-                            total_pages = pydantic_pages + langchain_pages + anthropic_pages
-                            st.success(f"Documentation preloading complete! Indexed {total_pages} pages.")
-                            
-                            # Set a flag to refresh this panel
-                            st.session_state.navigation_action = "refresh_after_crawl"
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Error preloading documentation: {str(e)}")
+                            def increment(self):
+                                self.count += 1
+                                update_progress(self.stage, self.count)
+                                return self.count
+                        
+                        # Pydantic docs
+                        pydantic_tracker = ProgressTracker(1)
+                        pydantic_pages = asyncio.run(crawl_pydantic_ai_docs(
+                            max_pages=300, max_depth=3, timeout=600,  # 10 minute timeout
+                            progress_callback=lambda: pydantic_tracker.increment()
+                        ))
+                        status_area.success(f"Indexed {pydantic_pages} Pydantic documentation pages")
+                        
+                        # LangChain docs
+                        progress_text = "Preloading LangChain documentation (Stage 2/3)..."
+                        status_area.info("Crawling LangChain documentation...")
+                        langchain_tracker = ProgressTracker(2)
+                        langchain_pages = asyncio.run(crawl_langchain_docs(
+                            max_pages=300, max_depth=3, timeout=600,  # 10 minute timeout
+                            progress_callback=lambda: langchain_tracker.increment()
+                        ))
+                        status_area.success(f"Indexed {langchain_pages} LangChain documentation pages")
+                        
+                        # Anthropic docs
+                        progress_text = "Preloading Anthropic documentation (Stage 3/3)..."
+                        status_area.info("Crawling Anthropic documentation...")
+                        anthropic_tracker = ProgressTracker(3)
+                        anthropic_pages = asyncio.run(crawl_anthropic_docs(
+                            max_pages=300, max_depth=3, timeout=600,  # 10 minute timeout
+                            progress_callback=lambda: anthropic_tracker.increment()
+                        ))
+                        status_area.success(f"Indexed {anthropic_pages} Anthropic documentation pages")
+                        
+                        # Complete
+                        total_pages = pydantic_pages + langchain_pages + anthropic_pages
+                        progress_bar.progress(1.0, text="Documentation preloading complete!")
+                        st.success(f"Documentation preloading complete! Indexed {total_pages} pages.")
+                        
+                        # Set a flag to refresh this panel
+                        st.session_state.navigation_action = "refresh_after_crawl"
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error preloading documentation: {str(e)}")
         
         with col2:
             # Last crawl time would be stored in settings or database

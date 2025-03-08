@@ -79,6 +79,51 @@ python -m agenteer.cli.main list
 python -m agenteer.cli.main run AGENT_ID -i "Your input here"
 ```
 
+## Documentation Management
+
+### Preloading Documentation
+
+#### Common Patterns:
+
+1. **Initial Setup**: When setting up a new Agenteer instance:
+   ```bash
+   # Preload all essential documentation
+   agenteer preload-docs --timeout 300
+   ```
+
+2. **Focused Documentation**: When working with specific frameworks:
+   ```bash
+   # For Pydantic work
+   agenteer preload-docs --source pydantic --max-pages 300
+   
+   # For LangChain projects
+   agenteer preload-docs --source langchain --max-pages 300
+   
+   # For Anthropic API development
+   agenteer preload-docs --source anthropic --max-pages 300
+   ```
+
+3. **Docker Deployment**:
+   ```bash
+   # Preload in Docker container
+   docker run --platform linux/arm64 agenteer preload-docs --timeout 600  # For Apple Silicon
+   docker run --platform linux/amd64 agenteer preload-docs --timeout 600  # For Intel/AMD
+   ```
+
+4. **Checking Status**:
+   ```bash
+   # Verify documentation is loaded
+   agenteer status
+   ```
+
+#### Best Practices:
+
+- Set reasonable `max-pages` limits (100-300) to avoid excessive crawling
+- Use longer timeouts (300-600 seconds) for complete documentation
+- Preload only documentation relevant to your current project
+- Run preloading during off-hours for large documentation sets
+- Verify loaded documentation by checking status
+
 ## Project Organization
 
 - `agenteer/`: Main package

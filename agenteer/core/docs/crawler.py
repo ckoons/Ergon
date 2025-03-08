@@ -10,11 +10,14 @@ import re
 import json
 import asyncio
 import httpx
+import hashlib
+import pickle
 from typing import Dict, Any, List, Optional, Set
 from bs4 import BeautifulSoup
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 from urllib.parse import urljoin, urlparse
+from pathlib import Path
 
 from agenteer.core.database.engine import get_db_session
 from agenteer.core.database.models import DocumentationPage
@@ -59,6 +62,7 @@ class DocumentationCrawler:
         # Additional configurable parameters
         self.max_depth = 3  # Default max link traversal depth
         self.timeout = 10   # Default HTTP request timeout in seconds
+        self.progress_callback = None  # Progress tracking callback function
         
         self.crawled_urls: Set[str] = set()
         self.urls_to_crawl: Set[str] = set(self.base_urls)
@@ -103,6 +107,10 @@ class DocumentationCrawler:
                         crawled_pages.append(result)
                         pages_crawled += 1
                         
+                        # Call progress callback if provided
+                        if self.progress_callback:
+                            self.progress_callback()
+                        
                         # Log progress
                         if pages_crawled % 10 == 0:
                             logger.info(f"Crawled {pages_crawled} pages...")
@@ -113,6 +121,43 @@ class DocumentationCrawler:
         # Return crawled pages
         return crawled_pages
     
+    def _get_cache_path(self, url: str) -> Path:
+        """
+        Get cache file path for a URL.
+        
+        Args:
+            url: URL to get cache path for
+            
+        Returns:
+            Path to cache file
+        """
+        # Create cache directory if it doesn't exist
+        cache_dir = Path(settings.vector_db_path) / "doc_cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create a unique filename based on URL
+        url_hash = hashlib.md5(url.encode()).hexdigest()
+        return cache_dir / f"{url_hash}.pickle"
+    
+    def _is_cache_valid(self, cache_path: Path) -> bool:
+        """
+        Check if cache is valid.
+        
+        Args:
+            cache_path: Path to cache file
+            
+        Returns:
+            True if cache is valid, False otherwise
+        """
+        # Check if cache file exists
+        if not cache_path.exists():
+            return False
+        
+        # Check if cache is fresh (less than 1 week old)
+        cache_time = datetime.fromtimestamp(cache_path.stat().st_mtime)
+        age = datetime.now() - cache_time
+        return age < timedelta(days=7)  # Cache is valid for 1 week
+        
     async def _process_url(self, client: httpx.AsyncClient, url: str, depth: int = 1) -> Optional[Dict[str, Any]]:
         """
         Process a single URL.
@@ -131,6 +176,29 @@ class DocumentationCrawler:
         
         # Add to crawled set
         self.crawled_urls.add(url)
+        
+        # Check cache
+        cache_path = self._get_cache_path(url)
+        if self._is_cache_valid(cache_path):
+            try:
+                with open(cache_path, 'rb') as f:
+                    page_data = pickle.load(f)
+                    logger.info(f"Loaded from cache: {url}")
+                    
+                    # Extract new URLs to crawl (only if we're not at max depth)
+                    if depth < self.max_depth and page_data.get("html"):
+                        soup = BeautifulSoup(page_data["html"], "html.parser")
+                        new_urls = self._extract_urls(soup, url, depth)
+                        self.urls_to_crawl.update(new_urls - self.crawled_urls)
+                    
+                    # Remove HTML from returned data (we only need it for URL extraction)
+                    if "html" in page_data:
+                        del page_data["html"]
+                    
+                    return page_data
+            except Exception as e:
+                logger.error(f"Error loading cache for {url}: {str(e)}")
+                # Continue with normal processing if cache loading fails
         
         try:
             # Fetch page
@@ -162,8 +230,16 @@ class DocumentationCrawler:
                 "url": url,
                 "source": source,
                 "depth": depth,
-                "crawled_at": datetime.now().isoformat()
+                "crawled_at": datetime.now().isoformat(),
+                "html": response.text  # Store HTML for cache
             }
+            
+            # Save to cache
+            with open(cache_path, 'wb') as f:
+                pickle.dump(page_data, f)
+            
+            # Remove HTML from returned data (we only need it for URL extraction and caching)
+            del page_data["html"]
             
             return page_data
             
@@ -282,7 +358,7 @@ class DocumentationCrawler:
         return len(crawled_pages)
 
 
-async def crawl_pydantic_ai_docs(max_pages=200, max_depth=3, timeout=30):
+async def crawl_pydantic_ai_docs(max_pages=200, max_depth=3, timeout=30, progress_callback=None):
     """Crawl Pydantic AI documentation only."""
     crawler = DocumentationCrawler(
         base_urls=["https://docs.pydantic.ai/latest/"],
@@ -292,10 +368,12 @@ async def crawl_pydantic_ai_docs(max_pages=200, max_depth=3, timeout=30):
     crawler.max_depth = max_depth
     # Set timeout for HTTP requests
     crawler.timeout = timeout
+    # Set progress callback
+    crawler.progress_callback = progress_callback
     return await crawler.crawl_and_index()
 
 
-async def crawl_langchain_docs(max_pages=200, max_depth=3, timeout=30):
+async def crawl_langchain_docs(max_pages=200, max_depth=3, timeout=30, progress_callback=None):
     """Crawl LangChain documentation only."""
     crawler = DocumentationCrawler(
         base_urls=["https://python.langchain.com/docs/"],
@@ -305,10 +383,12 @@ async def crawl_langchain_docs(max_pages=200, max_depth=3, timeout=30):
     crawler.max_depth = max_depth
     # Set timeout for HTTP requests
     crawler.timeout = timeout
+    # Set progress callback
+    crawler.progress_callback = progress_callback
     return await crawler.crawl_and_index()
 
 
-async def crawl_anthropic_docs(max_pages=200, max_depth=3, timeout=30):
+async def crawl_anthropic_docs(max_pages=200, max_depth=3, timeout=30, progress_callback=None):
     """Crawl Anthropic documentation only."""
     crawler = DocumentationCrawler(
         base_urls=["https://docs.anthropic.com/claude/docs/"],
@@ -318,14 +398,18 @@ async def crawl_anthropic_docs(max_pages=200, max_depth=3, timeout=30):
     crawler.max_depth = max_depth
     # Set timeout for HTTP requests
     crawler.timeout = timeout
+    # Set progress callback
+    crawler.progress_callback = progress_callback
     return await crawler.crawl_and_index()
 
 
-async def crawl_all_docs(max_pages=200, max_depth=3, timeout=30):
+async def crawl_all_docs(max_pages=200, max_depth=3, timeout=30, progress_callback=None):
     """Crawl all documentation."""
     crawler = DocumentationCrawler(max_pages=max_pages)
     # Configure crawler with additional parameters
     crawler.max_depth = max_depth
     # Set timeout for HTTP requests
     crawler.timeout = timeout
+    # Set progress callback
+    crawler.progress_callback = progress_callback
     return await crawler.crawl_and_index()

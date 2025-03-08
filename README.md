@@ -11,7 +11,7 @@ Agenteer is a streamlined AI agent builder focused on simplicity, performance, a
 - **Local First**: Runs entirely on local resources when needed
 - **Extensible**: Plugin architecture for custom agent capabilities
 - **Performance**: Optimized for speed with local caching
-- **Documentation Crawler**: Automatically index documentation for agent context
+- **Documentation Crawler**: Automatically index documentation with progress tracking and caching
 - **GitHub Integration**: Create GitHub-specific agents with repository access
 
 ## Installation
@@ -82,6 +82,8 @@ Agenteer offers built-in documentation preloading to enhance agent capabilities.
    ```
 
 The preloaded documentation enables agents to leverage knowledge from these frameworks when responding to queries, making them more effective for framework-specific tasks.
+
+Agenteer automatically caches documentation for faster preloading in future sessions. Cached documentation is stored in the `vector_store/doc_cache` directory and is valid for 7 days, after which it will be refreshed automatically. This ensures your documentation stays current while minimizing network usage.
 
 ## Requirements
 
