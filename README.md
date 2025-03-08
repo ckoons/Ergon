@@ -32,6 +32,9 @@ source venv/bin/activate
 # Start the UI
 agenteer ui
 
+# Or use the wrapper script for cleaner output
+./run_ui.sh
+
 # Or use the CLI
 agenteer create -n "my_agent" -d "A weather agent that fetches forecast data"
 ```
