@@ -39,10 +39,7 @@ ENV DATABASE_URL=sqlite:////data/database/agenteer.db \
 RUN if [ \! -f .env ]; then cp .env.example .env; fi
 
 # Create .env.owner file as a template (will be overwritten by volume mount if provided)
-RUN cat > .env.owner << EOL
-# Owner configuration - this will be overwritten by volume mount if provided
-# See .env.example for available settings
-EOL
+RUN echo '# Owner configuration - this will be overwritten by volume mount if provided\n# See .env.example for available settings' > .env.owner
 
 # Preload documentation if PRELOAD_DOCS build arg is set to true
 ARG PRELOAD_DOCS=false
