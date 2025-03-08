@@ -1,8 +1,8 @@
 # Agenteer
 
-Agenteer is a streamlined AI agent builder focused on simplicity, performance, and usability. It enables the rapid creation, testing, and deployment of AI agents with minimal configuration.
+![Agenteer UI](images/icon.jpeg)
 
-![Agenteer UI](https://via.placeholder.com/800x450.png?text=Agenteer+UI+Screenshot)
+Agenteer is a streamlined AI agent builder focused on simplicity, performance, and usability. It enables the rapid creation, testing, and deployment of AI agents with minimal configuration. Agenteer produces functioal agents using Pydantic.ai, LangChain, Anthropic MCP and OpenAI modules
 
 ## Key Features
 
@@ -20,7 +20,7 @@ Agenteer is a streamlined AI agent builder focused on simplicity, performance, a
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/Agenteer.git
+git clone https://github.com/ckoons/Agenteer.git
 cd Agenteer
 
 # Run the setup script
