@@ -42,8 +42,15 @@ agenteer create -n "my_agent" -d "A weather agent that fetches forecast data"
 # Build and run with Docker Compose
 docker-compose up -d
 
+# Build with preloaded documentation (Pydantic, LangChain, Anthropic)
+PRELOAD_DOCS=true docker-compose up -d
+
 # Or build and run manually
 docker build -t agenteer .
+docker run -p 8501:8501 -p 8000:8000 agenteer
+
+# Build with preloaded documentation
+docker build --build-arg PRELOAD_DOCS=true -t agenteer .
 docker run -p 8501:8501 -p 8000:8000 agenteer
 ```
 

@@ -7,7 +7,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONFAULTHANDLER=1 \
     PIP_NO_CACHE_DIR=off \
-    PIP_DISABLE_PIP_VERSION_CHECK=on
+    PIP_DISABLE_PIP_VERSION_CHECK=on \
+    PRELOAD_DOCS=false
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -43,6 +44,15 @@ RUN cat > .env.owner << EOL
 # See .env.example for available settings
 EOL
 
+# Preload documentation if PRELOAD_DOCS build arg is set to true
+ARG PRELOAD_DOCS=false
+RUN if [ "$PRELOAD_DOCS" = "true" ]; then \
+        echo "Preloading documentation..." && \
+        python scripts/preload_docs.py; \
+    else \
+        echo "Skipping documentation preload."; \
+    fi
+
 # Expose Streamlit port
 EXPOSE 8501
 
@@ -57,6 +67,8 @@ elif [[ "$1" == "api" ]]; then\n\
 elif [[ "$1" == "init" ]]; then\n\
     shift\n\
     agenteer init "$@"\n\
+elif [[ "$1" == "preload-docs" ]]; then\n\
+    python scripts/preload_docs.py\n\
 else\n\
     agenteer "$@"\n\
 fi' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
