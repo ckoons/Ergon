@@ -107,6 +107,11 @@ def mail_tool_definitions() -> List[Dict[str, Any]]:
                             "type": "string",
                             "description": "Email body text"
                         },
+                        "html": {
+                            "type": "boolean",
+                            "description": "Whether to send as HTML email",
+                            "default": false
+                        },
                         "cc": {
                             "type": "string",
                             "description": "CC recipient(s), comma-separated for multiple"
@@ -136,6 +141,11 @@ def mail_tool_definitions() -> List[Dict[str, Any]]:
                         "body": {
                             "type": "string",
                             "description": "Reply body text"
+                        },
+                        "html": {
+                            "type": "boolean",
+                            "description": "Whether to send as HTML email",
+                            "default": false
                         }
                     },
                     "required": ["message_id", "body"]
@@ -280,6 +290,7 @@ class MailTools:
     
     @staticmethod
     async def send_message(to: str, subject: str, body: str,
+                           html: bool = False,
                            cc: Optional[str] = None,
                            bcc: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -289,6 +300,7 @@ class MailTools:
             to: Recipient(s), comma-separated
             subject: Email subject
             body: Email body
+            html: Whether to send as HTML email
             cc: CC recipient(s), comma-separated
             bcc: BCC recipient(s), comma-separated
             
@@ -315,6 +327,7 @@ class MailTools:
                 to=to_list,
                 subject=subject,
                 body=body,
+                html_content=html,  # Pass HTML flag to service
                 cc=cc_list,
                 bcc=bcc_list
             )
@@ -337,20 +350,21 @@ class MailTools:
             }
     
     @staticmethod
-    async def reply_to_message(message_id: str, body: str) -> Dict[str, Any]:
+    async def reply_to_message(message_id: str, body: str, html: bool = False) -> Dict[str, Any]:
         """
         Reply to an existing email message.
         
         Args:
             message_id: ID of the message to reply to
             body: Reply body
+            html: Whether to send as HTML email
             
         Returns:
             Result object
         """
         try:
             mail_service = get_mail_service()
-            success = await mail_service.reply_to_message(message_id, body)
+            success = await mail_service.reply_to_message(message_id, body, html_content=html)
             
             if success:
                 return {

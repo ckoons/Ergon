@@ -164,6 +164,7 @@ class MailService:
             return {}
     
     async def send_message(self, to: Union[str, List[str]], subject: str, body: str,
+                           html_content: bool = False,
                            cc: Optional[Union[str, List[str]]] = None,
                            bcc: Optional[Union[str, List[str]]] = None) -> bool:
         """
@@ -173,6 +174,7 @@ class MailService:
             to: Recipient(s) email address(es)
             subject: Email subject
             body: Email body
+            html_content: Whether to send as HTML email (True for HTML, False for plain text)
             cc: CC recipient(s)
             bcc: BCC recipient(s)
             
@@ -189,24 +191,41 @@ class MailService:
             cc_list = [cc] if isinstance(cc, str) and cc else None if cc is None else cc
             bcc_list = [bcc] if isinstance(bcc, str) and bcc else None if bcc is None else bcc
             
-            return await self.provider.send_message(
-                to=to_list,
-                subject=subject,
-                body=body,
-                cc=cc_list,
-                bcc=bcc_list
-            )
+            # For Gmail, we need to modify the content type in the message
+            if isinstance(self.provider, GmailProvider) and hasattr(self.provider, 'send_message'):
+                # We need this import inside the method to avoid circular imports
+                from .providers import GmailProvider
+                
+                # Call Gmail provider directly with content type override
+                return await self.provider.send_message(
+                    to=to_list,
+                    subject=subject,
+                    body=body,
+                    content_type="text/html" if html_content else "text/plain",
+                    cc=cc_list,
+                    bcc=bcc_list
+                )
+            else:
+                # For other providers, we'll need to make them handle html_content parameter
+                return await self.provider.send_message(
+                    to=to_list,
+                    subject=subject,
+                    body=body,
+                    cc=cc_list,
+                    bcc=bcc_list
+                )
         except Exception as e:
             logger.error(f"Error sending message: {str(e)}")
             return False
     
-    async def reply_to_message(self, message_id: str, body: str) -> bool:
+    async def reply_to_message(self, message_id: str, body: str, html_content: bool = False) -> bool:
         """
         Reply to a specific message.
         
         Args:
             message_id: Message ID to reply to
             body: Reply body
+            html_content: Whether to send as HTML email (True for HTML, False for plain text)
             
         Returns:
             True if successful, False otherwise
@@ -216,7 +235,20 @@ class MailService:
             return False
         
         try:
-            return await self.provider.reply_to_message(message_id, body)
+            # For Gmail, we need to modify the content type in the message
+            if isinstance(self.provider, GmailProvider) and hasattr(self.provider, 'reply_to_message'):
+                # We need this import inside the method to avoid circular imports
+                from .providers import GmailProvider
+                
+                # Call Gmail provider directly with content type override
+                return await self.provider.reply_to_message(
+                    message_id=message_id,
+                    body=body,
+                    content_type="text/html" if html_content else "text/plain"
+                )
+            else:
+                # For other providers, we'll need to make them handle html_content parameter
+                return await self.provider.reply_to_message(message_id, body)
         except Exception as e:
             logger.error(f"Error replying to message {message_id}: {str(e)}")
             return False

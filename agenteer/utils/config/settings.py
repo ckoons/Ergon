@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     github_api_token: Optional[str] = None
     github_username: Optional[str] = None
     
+    # Mail provider settings
+    outlook_client_id: Optional[str] = None
+    
     # Model settings
     default_model: str = "gpt-4o-mini"
     use_local_models: bool = False

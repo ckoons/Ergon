@@ -97,10 +97,19 @@ def _generate_mail_setup_instructions() -> str:
 
 This agent allows you to manage your emails with natural language. Before using the email features, you need to set up authentication.
 
-## Gmail Setup
+## Mail Provider Setup
+
+### Gmail Setup
 
 1. Run the `setup_mail` command with "gmail" as the provider
 2. You will be prompted to allow access to your Gmail account
+3. Follow the browser instructions to complete authentication
+4. Once authenticated, you can use all email features
+
+### Outlook Setup
+
+1. Run the `setup_mail` command with "outlook" as the provider
+2. You will be prompted to allow access to your Microsoft account
 3. Follow the browser instructions to complete authentication
 4. Once authenticated, you can use all email features
 
@@ -111,6 +120,7 @@ After setup, you can use commands like:
 - "Show me my recent emails"
 - "Read the email from John about the meeting"
 - "Send an email to jane@example.com about the project update"
+- "Send an HTML email with formatting to jane@example.com"
 - "Reply to the last email from my boss"
 - "Search for emails containing 'invoice'"
 - "Show me my email folders"
