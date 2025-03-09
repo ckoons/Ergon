@@ -119,7 +119,7 @@ def create(
     name: str = typer.Option(..., "--name", "-n", help="Name for the agent"),
     description: str = typer.Option(None, "--description", "-d", help="Description for the agent"),
     model: str = typer.Option(None, "--model", "-m", help="Model to use (defaults to settings)"),
-    agent_type: str = typer.Option("standard", "--type", "-t", help="Type of agent to create (standard, github)"),
+    agent_type: str = typer.Option("standard", "--type", "-t", help="Type of agent to create (standard, github, mail)"),
 ):
     """Create a new AI agent with the given specifications."""
     try:
@@ -143,7 +143,7 @@ def create(
             raise typer.Exit(1)
         
         # Validate agent type
-        valid_types = ["standard", "github"]
+        valid_types = ["standard", "github", "mail"]
         if agent_type not in valid_types:
             console.print(f"[bold red]Invalid agent type: {agent_type}. Valid types: {', '.join(valid_types)}[/bold red]")
             raise typer.Exit(1)
@@ -209,13 +209,24 @@ def create(
         
         console.print(f"[bold green]{agent_type.capitalize()} agent '{name}' created successfully with ID {agent_id}![/bold green]")
         
-        # Special instructions for GitHub agent
+        # Special instructions for different agent types
         if agent_type == "github":
             console.print("\n[bold cyan]GitHub Agent Setup Instructions:[/bold cyan]")
             console.print("1. Make sure you have a GitHub personal access token with appropriate permissions")
             console.print("2. Set these environment variables in your .env file:")
             console.print("   - GITHUB_API_TOKEN=your_token_here")
             console.print("   - GITHUB_USERNAME=your_username_here\n")
+            console.print(f"Run the agent with: [bold]agenteer run {agent_id} --interactive[/bold]")
+        elif agent_type == "mail":
+            console.print("\n[bold cyan]Mail Agent Setup Instructions:[/bold cyan]")
+            console.print("1. When you first run the agent, it will guide you through OAuth authentication")
+            console.print("2. You'll need to complete the authentication process in your web browser")
+            console.print("3. Gmail requires creating an OAuth client ID in Google Cloud Console:")
+            console.print("   - Go to console.cloud.google.com and create a project")
+            console.print("   - Enable the Gmail API")
+            console.print("   - Create OAuth credentials (Desktop application type)")
+            console.print("   - Download the credentials.json file")
+            console.print("   - Place it in your config directory as 'gmail_credentials.json'\n")
             console.print(f"Run the agent with: [bold]agenteer run {agent_id} --interactive[/bold]")
         
     except Exception as error:
@@ -385,7 +396,7 @@ def run_agent(
 
 @app.command("preload-docs")
 def preload_docs(
-    source: str = typer.Option("all", "--source", "-s", help="Documentation source(s) to preload: all, pydantic, langchain, anthropic"),
+    source: str = typer.Option("all", "--source", "-s", help="Documentation source(s) to preload: all, pydantic, langchain, langgraph, anthropic"),
     max_pages: int = typer.Option(300, "--max-pages", "-m", help="Maximum number of pages to crawl"),
     max_depth: int = typer.Option(3, "--max-depth", "-d", help="Maximum link depth to crawl"),
     timeout: int = typer.Option(600, "--timeout", "-t", help="HTTP request timeout in seconds (max 600)")
@@ -395,7 +406,8 @@ def preload_docs(
         from agenteer.core.docs.crawler import (
             crawl_all_docs, 
             crawl_pydantic_ai_docs, 
-            crawl_langchain_docs, 
+            crawl_langchain_docs,
+            crawl_langgraph_docs,
             crawl_anthropic_docs
         )
         from agenteer.core.database.engine import get_db_session, init_db
@@ -441,6 +453,15 @@ def preload_docs(
                 ))
             console.print(f"[bold green]Successfully preloaded {pages_crawled} LangChain documentation pages![/bold green]")
         
+        elif source.lower() == "langgraph":
+            with console.status("[bold green]Preloading LangGraph documentation..."):
+                pages_crawled = asyncio.run(crawl_langgraph_docs(
+                    max_pages=max_pages,
+                    max_depth=max_depth,
+                    timeout=timeout
+                ))
+            console.print(f"[bold green]Successfully preloaded {pages_crawled} LangGraph documentation pages![/bold green]")
+        
         elif source.lower() == "anthropic":
             with console.status("[bold green]Preloading Anthropic documentation..."):
                 pages_crawled = asyncio.run(crawl_anthropic_docs(
@@ -452,7 +473,7 @@ def preload_docs(
         
         else:
             console.print(f"[bold red]Invalid source: {source}[/bold red]")
-            console.print("Valid sources: all, pydantic, langchain, anthropic")
+            console.print("Valid sources: all, pydantic, langchain, langgraph, anthropic")
             raise typer.Exit(1)
         
         # Get updated doc count

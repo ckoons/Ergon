@@ -75,6 +75,9 @@ agenteer create -n "AgentName" -d "Description" -t standard
 # Create a GitHub agent
 agenteer create -n "GitHubAgent" -d "Description" -t github
 
+# Create a Mail agent
+agenteer create -n "MailAgent" -d "Description" -t mail
+
 # List all agents
 agenteer list
 
@@ -152,6 +155,9 @@ docker run --platform linux/arm64 -v agenteer-data:/data -p 8501:8501 agenteer u
    
    # For LangChain projects
    agenteer preload-docs --source langchain --max-pages 300
+   
+   # For LangGraph projects
+   agenteer preload-docs --source langgraph --max-pages 300
    
    # For Anthropic API development
    agenteer preload-docs --source anthropic --max-pages 300

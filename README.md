@@ -2,7 +2,8 @@
 
 ![Agenteer UI](images/icon.jpeg)
 
-Agenteer is a streamlined AI agent builder focused on simplicity, performance, and usability. It enables the rapid creation, testing, and deployment of AI agents with minimal configuration. Agenteer produces functioal agents using Pydantic.ai, LangChain, Anthropic MCP and OpenAI modules
+
+Agenteer is a streamlined AI agent builder focused on simplicity, performance, and usability. It enables the rapid creation, testing, and deployment of AI agents with minimal configuration. Agenteer produces functioal agents using PydanticAI, LangChain, LangGraph, Anthropic MCP,  OpenAI and other LLM modules
 
 ## Key Features
 
@@ -58,7 +59,7 @@ docker run -p 8501:8501 -p 8000:8000 agenteer
 Agenteer offers built-in documentation preloading to enhance agent capabilities. There are several ways to preload documentation:
 
 1. **Via the UI (Recommended)**: 
-   Navigate to the Documentation or Web Search pages in the UI. If no documentation is found, you'll see a "Preload Essential Documentation" button that will automatically crawl and index documentation from Pydantic, LangChain, and Anthropic.
+   Navigate to the Documentation or Web Search pages in the UI. If no documentation is found, you'll see a "Preload Essential Documentation" button that will automatically crawl and index documentation from Pydantic, LangChain, LangGraph, and Anthropic.
 
 2. **Using the CLI**:
    ```bash
@@ -68,6 +69,7 @@ Agenteer offers built-in documentation preloading to enhance agent capabilities.
    # Preload a specific source
    agenteer preload-docs --source pydantic
    agenteer preload-docs --source langchain
+   agenteer preload-docs --source langgraph
    agenteer preload-docs --source anthropic
 
    # Customize crawling settings
@@ -82,6 +84,7 @@ Agenteer offers built-in documentation preloading to enhance agent capabilities.
 
    # Preload a specific source
    docker run --platform linux/arm64 agenteer preload-docs --source langchain  # For Apple Silicon
+   docker run --platform linux/arm64 agenteer preload-docs --source langgraph  # For Apple Silicon
    ```
 
 The preloaded documentation enables agents to leverage knowledge from these frameworks when responding to queries, making them more effective for framework-specific tasks.

@@ -54,6 +54,7 @@ class DocumentationCrawler:
             "https://docs.pydantic.ai/latest/",
             "https://python.langchain.com/docs/",
             "https://docs.anthropic.com/claude/docs/",
+            "https://langchain-ai.github.io/langgraph/",
         ]
         self.max_pages = max_pages
         self.concurrent_requests = concurrent_requests
@@ -392,6 +393,21 @@ async def crawl_anthropic_docs(max_pages=200, max_depth=3, timeout=30, progress_
     """Crawl Anthropic documentation only."""
     crawler = DocumentationCrawler(
         base_urls=["https://docs.anthropic.com/claude/docs/"],
+        max_pages=max_pages
+    )
+    # Configure crawler with additional parameters
+    crawler.max_depth = max_depth
+    # Set timeout for HTTP requests
+    crawler.timeout = timeout
+    # Set progress callback
+    crawler.progress_callback = progress_callback
+    return await crawler.crawl_and_index()
+
+
+async def crawl_langgraph_docs(max_pages=200, max_depth=3, timeout=30, progress_callback=None):
+    """Crawl LangGraph documentation only."""
+    crawler = DocumentationCrawler(
+        base_urls=["https://langchain-ai.github.io/langgraph/"],
         max_pages=max_pages
     )
     # Configure crawler with additional parameters

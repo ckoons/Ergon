@@ -148,6 +148,14 @@ class AgentRunner:
         # Try to load tool implementations
         tool_funcs = self._load_tool_functions()
         
+        # Register mail tools if this is a mail agent
+        if "mail" in self.agent.name.lower() or "email" in self.agent.name.lower():
+            try:
+                from agenteer.core.agents.mail.tools import register_mail_tools
+                register_mail_tools(tool_funcs)
+            except ImportError as e:
+                logger.error(f"Failed to import mail tools: {str(e)}")
+        
         # For GitHub agent (or other agents with non-LLM implementation)
         if "github" in self.agent.name.lower() and "process_request" in tool_funcs:
             try:

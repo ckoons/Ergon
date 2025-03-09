@@ -3,7 +3,7 @@
 Preload documentation script for Agenteer Docker image.
 
 This script is used to pre-crawl and index documentation from
-Pydantic, LangChain, and Anthropic during Docker image build.
+Pydantic, LangChain, LangGraph, and Anthropic during Docker image build.
 """
 
 import asyncio
@@ -17,7 +17,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agenteer.core.docs.crawler import (
     crawl_pydantic_ai_docs,
     crawl_langchain_docs,
-    crawl_anthropic_docs
+    crawl_anthropic_docs,
+    crawl_langgraph_docs
 )
 from agenteer.core.database.engine import init_db
 from agenteer.utils.config.settings import settings
@@ -37,20 +38,25 @@ async def preload_all_docs():
     
     # Crawl Pydantic docs
     logger.info("Crawling Pydantic documentation...")
-    pydantic_pages = await crawl_pydantic_ai_docs(max_pages=300, max_depth=3)
+    pydantic_pages = await crawl_pydantic_ai_docs(max_pages=300, max_depth=3, timeout=600)  # 10 minute timeout
     logger.info(f"Indexed {pydantic_pages} Pydantic documentation pages")
     
     # Crawl LangChain docs
     logger.info("Crawling LangChain documentation...")
-    langchain_pages = await crawl_langchain_docs(max_pages=300, max_depth=3)
+    langchain_pages = await crawl_langchain_docs(max_pages=300, max_depth=3, timeout=600)  # 10 minute timeout
     logger.info(f"Indexed {langchain_pages} LangChain documentation pages")
+    
+    # Crawl LangGraph docs
+    logger.info("Crawling LangGraph documentation...")
+    langgraph_pages = await crawl_langgraph_docs(max_pages=300, max_depth=3, timeout=600)  # 10 minute timeout
+    logger.info(f"Indexed {langgraph_pages} LangGraph documentation pages")
     
     # Crawl Anthropic docs
     logger.info("Crawling Anthropic documentation...")
-    anthropic_pages = await crawl_anthropic_docs(max_pages=300, max_depth=3)
+    anthropic_pages = await crawl_anthropic_docs(max_pages=300, max_depth=3, timeout=600)  # 10 minute timeout
     logger.info(f"Indexed {anthropic_pages} Anthropic documentation pages")
     
-    total_pages = pydantic_pages + langchain_pages + anthropic_pages
+    total_pages = pydantic_pages + langchain_pages + langgraph_pages + anthropic_pages
     logger.info(f"Documentation preloading complete. Total pages indexed: {total_pages}")
     
     return total_pages

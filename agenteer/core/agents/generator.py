@@ -485,7 +485,7 @@ def generate_agent(
         model_name: Name of the model to use
         temperature: Temperature for generation
         tools: Optional list of tools for the agent
-        agent_type: Type of agent to create (standard, github, etc.)
+        agent_type: Type of agent to create (standard, github, mail, etc.)
     
     Returns:
         Dictionary with agent details and files
@@ -498,6 +498,11 @@ def generate_agent(
         # Override tools with GitHub tools
         github_tools = get_github_tools()
         return asyncio.run(generator.generate_github_agent(name, description, github_tools))
+    elif agent_type == "mail":
+        # Import the mail generator dynamically to avoid circular imports
+        from agenteer.core.agents.generators.mail_generator import generate_mail_agent
+        # Generate mail agent
+        return generate_mail_agent(name, description, model_name or settings.default_model)
     else:
         return asyncio.run(generator.generate(name, description, tools))
 
