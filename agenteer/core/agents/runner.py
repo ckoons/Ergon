@@ -109,6 +109,9 @@ class AgentRunner:
         """
         start_time = datetime.now()
         
+        # Log agent execution with name for better traceability
+        logger.info(f"Running agent '{self.agent.name}' (ID: {self.agent.id})")
+        
         try:
             if self.timeout:
                 # Run with timeout
@@ -116,9 +119,9 @@ class AgentRunner:
                     return asyncio.run(self._run_with_timeout(input_text))
                 except asyncio.TimeoutError:
                     elapsed_time = (datetime.now() - start_time).total_seconds()
-                    error_msg = f"Agent execution timed out after {elapsed_time:.2f} seconds (timeout: {self.timeout}s)"
+                    error_msg = f"Agent '{self.agent.name}' execution timed out after {elapsed_time:.2f} seconds (timeout: {self.timeout}s)"
                     
-                    # Log the timeout
+                    # Log the timeout with agent name
                     logger.warning(error_msg)
                     
                     # Record the timeout in the database if execution_id is provided
@@ -149,11 +152,17 @@ class AgentRunner:
                         return f"I wasn't able to complete the task in the allowed time. {error_msg}"
             else:
                 # Run without timeout
-                return asyncio.run(self.arun(input_text))
+                response = asyncio.run(self.arun(input_text))
+                
+                # Log successful completion with timing
+                elapsed_time = (datetime.now() - start_time).total_seconds()
+                logger.info(f"Agent '{self.agent.name}' (ID: {self.agent.id}) completed successfully in {elapsed_time:.2f} seconds")
+                
+                return response
         except Exception as e:
-            # Handle other exceptions
+            # Handle other exceptions with agent name
             elapsed_time = (datetime.now() - start_time).total_seconds()
-            error_msg = f"Error after {elapsed_time:.2f} seconds: {str(e)}"
+            error_msg = f"Error in agent '{self.agent.name}' after {elapsed_time:.2f} seconds: {str(e)}"
             logger.error(error_msg)
             
             if self.execution_id:
@@ -480,11 +489,19 @@ If you don't need to use a tool, respond with your regular text answer."""
         Raises:
             asyncio.TimeoutError: If the execution exceeds the timeout
         """
+        # Log the timeout attempt
+        logger.info(f"Running agent '{self.agent.name}' with {self.timeout}s timeout and '{self.timeout_action}' action")
+        
         # Create a task for running the agent
         task = asyncio.create_task(self.arun(input_text))
         
         # Wait for the task to complete or timeout
-        return await asyncio.wait_for(task, timeout=self.timeout)
+        response = await asyncio.wait_for(task, timeout=self.timeout)
+        
+        # Log successful completion
+        logger.info(f"Agent '{self.agent.name}' completed successfully within timeout period")
+        
+        return response
     
     async def arun_stream(self, input_text: str):
         """

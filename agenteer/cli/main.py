@@ -355,7 +355,7 @@ def run_agent(
             
             if interactive:
                 # Interactive mode
-                console.print(f"[bold green]Running agent '{agent.name}' in interactive mode. Type 'exit' to quit.[/bold green]")
+                console.print(f"[bold green]Running agent '[bold cyan]{agent.name}[/bold cyan]' (ID: {agent.id}) in interactive mode. Type 'exit' to quit.[/bold green]")
                 
                 while True:
                     user_input = console.input("[bold blue]> [/bold blue]")
@@ -376,8 +376,8 @@ def run_agent(
                     with console.status("[bold green]Agent thinking..."):
                         response = runner.run(user_input)
                     
-                    # Print response
-                    console.print(f"[bold green]{agent.name}:[/bold green] {response}")
+                    # Print response with consistent agent name display
+                    console.print(f"[bold cyan]{agent.name}[/bold cyan] [dim](ID: {agent.id})[/dim]: {response}")
                     
                     # Record assistant message
                     message = AgentMessage(
@@ -421,8 +421,8 @@ def run_agent(
                     execution.success = True
                     db.commit()
                 
-                # Print response
-                console.print(f"[bold green]{agent.name}:[/bold green] {response}")
+                # Print response with consistent agent name display
+                console.print(f"[bold cyan]{agent.name}[/bold cyan] [dim](ID: {agent.id})[/dim]: {response}")
                 
             else:
                 console.print("[yellow]No input provided. Use --input or --interactive.[/yellow]")
