@@ -213,7 +213,32 @@ If you see `Bind for 0.0.0.0:8501 failed: port is already allocated`:
 - Run `docker ps` to find and stop the container
 - Or use a different port: `-p 8502:8501`
 
-## Current Development Work
+## Latest Development Updates (March 11, 2025)
+
+### Key Accomplishments
+
+1. **Mail Agent Configuration**
+   - Fixed configuration by adding `config_path` attribute to Settings class
+   - Added proper directory validation and creation
+   - Set up foundation for Gmail and Outlook OAuth
+
+2. **Agent Management**
+   - Added `delete` command to CLI with interactive confirmation
+   - Implemented cascading deletion of associated data (tools, files, executions)
+   - Added delete button to UI with confirmation dialog
+
+3. **Human-Friendly Agent Interface**
+   - Enhanced CLI to work with agent names instead of just IDs
+   - Added fuzzy matching for partial name matches
+   - Implemented intelligent lookup fallbacks (ID → exact name → partial match)
+   - Added comprehensive agent name logging for traceability
+
+4. **Timeout Functionality**
+   - Added timeout capability to agent runner with three actions:
+     - `log`: Record timeout and return gentle message (default)
+     - `alarm`: Record timeout and return prominent warning
+     - `kill`: Terminate execution and return error message
+   - Added performance metrics in logs (execution time, completion status)
 
 ### Mail Agent Status
 
