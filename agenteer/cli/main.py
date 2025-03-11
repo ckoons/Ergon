@@ -497,6 +497,82 @@ def preload_docs(
         raise typer.Exit(1)
 
 
+@app.command("delete")
+def delete_agent(
+    agent_id: int = typer.Argument(..., help="ID of the agent to delete"),
+    force: bool = typer.Option(False, "--force", "-f", help="Force deletion without confirmation"),
+):
+    """Delete an AI agent and associated data."""
+    try:
+        from agenteer.core.database.engine import get_db_session
+        from agenteer.core.database.models import Agent, AgentFile, AgentTool, AgentExecution, AgentMessage
+        
+        # Initialize database if not exists
+        if not os.path.exists(settings.database_url.replace("sqlite:///", "")):
+            console.print("[yellow]Database not initialized. Nothing to delete.[/yellow]")
+            raise typer.Exit(1)
+        
+        # Get agent info
+        with get_db_session() as db:
+            agent = db.query(Agent).filter(Agent.id == agent_id).first()
+            
+            if not agent:
+                console.print(f"[bold red]Agent with ID {agent_id} not found.[/bold red]")
+                raise typer.Exit(1)
+            
+            # Confirm deletion
+            if not force:
+                console.print(f"[bold yellow]Are you sure you want to delete agent '{agent.name}' (ID: {agent.id})?[/bold yellow]")
+                console.print(f"Description: {agent.description}")
+                console.print(f"Model: {agent.model_name}")
+                if not typer.confirm("Delete this agent?"):
+                    console.print("[yellow]Deletion cancelled.[/yellow]")
+                    raise typer.Exit(0)
+            
+            # Store agent info before deletion
+            agent_name = agent.name
+            agent_id_val = agent.id
+            
+            # Count related records
+            tool_count = db.query(AgentTool).filter(AgentTool.agent_id == agent_id).count()
+            file_count = db.query(AgentFile).filter(AgentFile.agent_id == agent_id).count()
+            execution_count = db.query(AgentExecution).filter(AgentExecution.agent_id == agent_id).count()
+            
+            # Start deletion with status
+            with console.status(f"[bold red]Deleting agent '{agent_name}' and associated data..."):
+                # First delete messages (due to foreign key constraints)
+                execution_ids = [row[0] for row in db.query(AgentExecution.id).filter(AgentExecution.agent_id == agent_id).all()]
+                if execution_ids:
+                    message_count = db.query(AgentMessage).filter(AgentMessage.execution_id.in_(execution_ids)).delete(synchronize_session=False)
+                else:
+                    message_count = 0
+                
+                # Then delete executions
+                db.query(AgentExecution).filter(AgentExecution.agent_id == agent_id).delete(synchronize_session=False)
+                
+                # Delete tools and files
+                db.query(AgentTool).filter(AgentTool.agent_id == agent_id).delete(synchronize_session=False)
+                db.query(AgentFile).filter(AgentFile.agent_id == agent_id).delete(synchronize_session=False)
+                
+                # Finally delete the agent
+                db.query(Agent).filter(Agent.id == agent_id).delete(synchronize_session=False)
+                
+                # Commit changes
+                db.commit()
+            
+            # Show deletion summary
+            console.print(f"[bold green]Successfully deleted agent '{agent_name}' (ID: {agent_id_val})![/bold green]")
+            console.print(f"Removed:")
+            console.print(f"- {tool_count} tool definition(s)")
+            console.print(f"- {file_count} agent file(s)")
+            console.print(f"- {execution_count} execution record(s)")
+            console.print(f"- {message_count} message(s)")
+        
+    except Exception as e:
+        console.print(f"[bold red]Error deleting agent: {str(e)}[/bold red]")
+        raise typer.Exit(1)
+
+
 @app.command("status")
 def status():
     """Check Agenteer status and configuration."""

@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     # Internal settings
     app_root: Path = Field(default_factory=lambda: Path(__file__).parent.parent.parent.absolute())
     
+    # Config path for persistent settings
+    config_path: Path = Field(default_factory=lambda: Path.home() / ".agenteer")
+    
     # Config for environment variables
     model_config = SettingsConfigDict(
         # Priority order: .env.owner, .env.local, .env
@@ -72,6 +75,13 @@ class Settings(BaseSettings):
         """Make vector db path absolute if it's relative"""
         if not os.path.isabs(v):
             return os.path.abspath(v)
+        return v
+        
+    @field_validator('config_path')
+    def validate_config_path(cls, v):
+        """Ensure config path exists"""
+        if not os.path.exists(v):
+            os.makedirs(v, exist_ok=True)
         return v
     
     @property

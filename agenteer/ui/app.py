@@ -927,7 +927,7 @@ elif st.session_state.page == "My Agents":
             agent = db.query(Agent).filter(Agent.id == selected_agent_id).first()
             
             if agent:
-                col1, col2 = st.columns([3, 1])
+                col1, col2, col3 = st.columns([3, 1, 1])
                 
                 with col1:
                     st.markdown(f"## {agent.name}")
@@ -936,6 +936,51 @@ elif st.session_state.page == "My Agents":
                 with col2:
                     st.markdown(f"**Model**: {agent.model_name}")
                     st.markdown(f"**Created**: {agent.created_at.strftime('%Y-%m-%d %H:%M') if agent.created_at else 'Unknown'}")
+                
+                with col3:
+                    # Delete agent button with confirmation
+                    if st.button("🗑️ Delete Agent", key=f"delete_agent_{agent.id}", 
+                                type="secondary", help="Delete this agent and all associated data"):
+                        # Create confirmation dialog
+                        confirm_delete = st.warning(f"Are you sure you want to delete '{agent.name}'? This cannot be undone.")
+                        col_yes, col_no = st.columns(2)
+                        with col_yes:
+                            if st.button("Yes, Delete", key=f"confirm_delete_{agent.id}", type="primary"):
+                                # Delete agent and associated data
+                                try:
+                                    # First delete messages (due to foreign key constraints)
+                                    execution_ids = [row[0] for row in db.query(AgentExecution.id).filter(AgentExecution.agent_id == agent.id).all()]
+                                    if execution_ids:
+                                        db.query(AgentMessage).filter(AgentMessage.execution_id.in_(execution_ids)).delete(synchronize_session=False)
+                                    
+                                    # Then delete executions
+                                    db.query(AgentExecution).filter(AgentExecution.agent_id == agent.id).delete(synchronize_session=False)
+                                    
+                                    # Delete tools and files
+                                    db.query(AgentTool).filter(AgentTool.agent_id == agent.id).delete(synchronize_session=False)
+                                    db.query(AgentFile).filter(AgentFile.agent_id == agent.id).delete(synchronize_session=False)
+                                    
+                                    # Get agent name for success message
+                                    agent_name = agent.name
+                                    
+                                    # Finally delete the agent
+                                    db.query(Agent).filter(Agent.id == agent.id).delete(synchronize_session=False)
+                                    
+                                    # Commit changes
+                                    db.commit()
+                                    
+                                    # Clear selected agent
+                                    st.session_state.selected_agent_id = None
+                                    
+                                    # Show success message and refresh
+                                    st.success(f"Agent '{agent_name}' successfully deleted!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error deleting agent: {str(e)}")
+                        with col_no:
+                            if st.button("Cancel", key=f"cancel_delete_{agent.id}", type="secondary"):
+                                # Just refresh to hide the confirmation
+                                st.rerun()
                 
                 # Tabs for different agent views
                 tabs = st.tabs(["Chat", "Files", "Tools", "Executions"])

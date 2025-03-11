@@ -3,7 +3,7 @@
 ![Agenteer UI](images/icon.jpeg)
 
 
-Agenteer is a streamlined AI agent builder focused on simplicity, performance, and usability. It enables the rapid creation, testing, and deployment of AI agents with minimal configuration. Agenteer produces functioal agents using PydanticAI, LangChain, LangGraph, Anthropic MCP,  OpenAI and other LLM modules
+Agenteer is a streamlined AI agent builder focused on simplicity, performance, and usability. It enables the rapid creation, testing, and deployment of AI agents with minimal configuration. Agenteer produces functional agents using PydanticAI, LangChain, LangGraph, Anthropic MCP, OpenAI and other LLM modules.
 
 ## Key Features
 
@@ -14,6 +14,7 @@ Agenteer is a streamlined AI agent builder focused on simplicity, performance, a
 - **Performance**: Optimized for speed with local caching
 - **Documentation Crawler**: Automatically index documentation with progress tracking and caching
 - **GitHub Integration**: Create GitHub-specific agents with repository access
+- **Mail Integration**: Create email agents that can read and send email via Gmail and Outlook
 
 ## Installation
 
@@ -146,19 +147,202 @@ LOG_LEVEL="INFO"
 DEBUG=false
 ```
 
-## GitHub Integration
+## Working with Agents
 
-Agenteer includes a GitHub agent generator:
+Agenteer provides a unified interface for creating, running, and managing AI agents through both the CLI and web UI.
+
+### Creating Agents
 
 ```bash
-# Using the standalone GitHub agent
-python github_agent.py --list                # List repositories
-python github_agent.py --get REPO_NAME       # Get repository details
-python github_agent.py --create NEW_REPO     # Create a new repository
+# Create a standard agent
+agenteer create -n "MyAgent" -d "Description of the agent" -t standard
 
-# Using natural language
-python github_agent.py "list repositories"
+# Create a GitHub agent
+agenteer create -n "GitHubAgent" -d "GitHub repository manager" -t github
+
+# Create a Mail agent
+agenteer create -n "MailAgent" -d "Email management assistant" -t mail
 ```
+
+### Running Agents
+
+There are several ways to run your agents:
+
+```bash
+# List available agents to get their IDs
+agenteer list
+
+# Run an agent with a specific input
+agenteer run AGENT_ID -i "Your input here"
+
+# Run an agent in interactive mode (conversation)
+agenteer run AGENT_ID --interactive
+```
+
+### Managing Agents
+
+You can manage your agents with the following commands:
+
+```bash
+# List all agents
+agenteer list
+
+# Delete an agent (with confirmation prompt)
+agenteer delete AGENT_ID
+
+# Force delete an agent without confirmation
+agenteer delete AGENT_ID --force
+```
+
+### Using the Web UI
+
+You can launch the web UI to interact with your agents in a more user-friendly interface:
+
+```bash
+agenteer ui
+```
+
+The web UI provides several ways to work with agents:
+
+#### Running Agents in the UI
+
+1. Navigate to the "My Agents" page from the sidebar
+2. Select an agent from the dropdown menu at the top
+3. Use the Chat tab to interact with your agent:
+   - Type messages in the chat input at the bottom
+   - View the conversation history in the chat window
+   - Use the "Reset Chat" button to clear the conversation history
+
+#### Agent Management in the UI
+
+The UI provides several features for managing your agents:
+
+- **Creating Agents**: Use the "Create Agent" page to set up new agents with different capabilities
+- **Viewing Agent Details**: The "My Agents" page shows details for each agent, including:
+  - Files tab: View the agent's system prompt and other configuration files
+  - Tools tab: See the tools available to the agent
+  - Executions tab: Review past agent executions and their results
+- **Deleting Agents**: Click the "Delete Agent" button on the agent details page to remove an agent
+
+#### Other UI Features
+
+- **Documentation**: Search and browse the documentation loaded into the system
+- **Web Search**: Crawl and index external documentation
+- **Settings**: Configure API keys, database connections, and other system settings
+
+### Agent Types
+
+#### Standard Agents
+General-purpose agents for various tasks, including code assistance, knowledge retrieval, and more.
+
+#### GitHub Agents
+Specialized agents for GitHub integration. These agents can:
+
+- List your GitHub repositories
+- Get repository details
+- Create and manage repositories
+- View issues and pull requests
+- Create, edit and delete files in repositories
+
+You can use GitHub agents in three ways:
+
+1. **Through the UI**:
+   - Create a GitHub agent in the "Create Agent" page by selecting the GitHub agent type
+   - Run the agent from the "My Agents" page and interact with it via chat
+
+2. **Through the CLI**:
+   - Create a GitHub agent: `agenteer create -n "GitHubAgent" -d "Description" -t github`
+   - Run the agent: `agenteer run AGENT_ID --interactive`
+
+3. **Using the standalone script**:
+   ```bash
+   # Using the standalone GitHub agent
+   python github_agent.py --list                # List repositories
+   python github_agent.py --get REPO_NAME       # Get repository details
+   python github_agent.py --create NEW_REPO     # Create a new repository
+
+   # Using natural language
+   python github_agent.py "list repositories"
+   ```
+
+#### Mail Agents
+Email integration agents that can read, send, and manage emails. These agents can:
+
+- Connect to Gmail or Outlook/Microsoft 365 accounts
+- Read messages from your inbox
+- Send new emails with HTML formatting
+- Reply to existing conversations 
+- Search for specific emails
+- View email folders/labels
+
+You can use Mail agents in two ways:
+
+1. **Through the UI**:
+   - Create a Mail agent in the "Create Agent" page by selecting the Mail agent type
+   - Run the agent from the "My Agents" page and interact with it via chat
+   - Use natural language to request email operations
+
+2. **Through the CLI**:
+   - Create a Mail agent: `agenteer create -n "MailAgent" -d "Description" -t mail`
+   - Run the agent: `agenteer run AGENT_ID --interactive`
+
+When you first run a Mail agent, it will guide you through the authentication process:
+1. Use the `setup_mail` command with your provider of choice (gmail or outlook)
+2. Complete the OAuth authentication flow in your web browser
+3. Once authenticated, you can use commands like:
+   - get_inbox - View your recent emails
+   - send_message - Compose and send new emails
+   - reply_to_message - Reply to existing conversations
+   - search_messages - Find specific emails
+
+##### Mail Agent Setup
+
+###### Gmail Setup
+
+1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project
+3. Enable the Gmail API:
+   - From the dashboard, go to "APIs & Services" > "Library"
+   - Search for "Gmail API" and enable it
+4. Create OAuth credentials:
+   - Go to "APIs & Services" > "Credentials"
+   - Click "Create Credentials" > "OAuth client ID"
+   - Select "Desktop application" as the application type
+   - Name your OAuth client
+5. Download the credentials:
+   - After creation, download the JSON file
+   - Rename it to `gmail_credentials.json`
+   - Place it in the `~/.agenteer/mail` directory (will be created automatically if it doesn't exist)
+
+###### Outlook/Microsoft 365 Setup
+
+1. Go to the [Azure Portal](https://portal.azure.com/)
+2. Navigate to "Azure Active Directory" > "App registrations"
+3. Click "New registration"
+   - Name your application
+   - Select "Accounts in any organizational directory and personal Microsoft accounts"
+   - Set the redirect URI to `http://localhost:8000/auth/callback`
+4. After registration, note your Application (client) ID
+5. Add API permissions:
+   - Go to "API permissions" > "Add a permission"
+   - Select "Microsoft Graph" > "Delegated permissions"
+   - Add the following permissions:
+     - Mail.Read
+     - Mail.Send
+     - Mail.ReadWrite
+6. Configure authentication:
+   - Go to "Authentication"
+   - Ensure the redirect URI is set correctly
+   - Under "Advanced settings", enable "Allow public client flows"
+7. Create a client secret (optional):
+   - Go to "Certificates & secrets"
+   - Click "New client secret"
+   - Provide a description and choose expiration
+   - Copy the secret value immediately (it won't be shown again)
+8. Add the client ID to your `.env` file:
+   ```
+   OUTLOOK_CLIENT_ID=your-client-id-here
+   ```
 
 ## Use Cases
 
