@@ -177,6 +177,44 @@ agenteer run AGENT_ID -i "Your input here"
 
 # Run an agent in interactive mode (conversation)
 agenteer run AGENT_ID --interactive
+
+# Run an agent with a timeout (30 seconds)
+agenteer run AGENT_ID -i "Your input here" --timeout 30
+
+# Set timeout action (log, alarm, or kill)
+agenteer run AGENT_ID -i "Your input here" --timeout 30 --timeout-action alarm
+```
+
+### Agent Timeout Management
+
+Agenteer provides built-in timeout functionality to monitor and control agent executions:
+
+#### Timeout Options
+
+- `--timeout <seconds>`: Set a maximum execution time in seconds
+- `--timeout-action <action>`: Specify what happens when timeout occurs:
+  - `log`: Record timeout in logs and return a gentle message (default)
+  - `alarm`: Record timeout and return a more prominent warning message
+  - `kill`: Terminate the agent execution and return an error message
+
+#### Use Cases
+
+- **Resource Management**: Prevent runaway agents from consuming excessive resources
+- **Performance Monitoring**: Track how long agents take to complete tasks
+- **Workflow Orchestration**: Ensure batch operations complete within time constraints
+- **Production Reliability**: Implement circuit breakers for mission-critical agent tasks
+
+#### Examples
+
+```bash
+# Set a 30-second timeout with default "log" action
+agenteer run AGENT_ID -i "Research quantum computing" --timeout 30
+
+# Use "alarm" action to get a more noticeable timeout warning
+agenteer run AGENT_ID -i "Analyze this dataset" --timeout 60 --timeout-action alarm
+
+# Use "kill" action to forcibly terminate long-running operations
+agenteer run AGENT_ID -i "Complex task" --timeout 120 --timeout-action kill
 ```
 
 ### Managing Agents

@@ -40,7 +40,9 @@ class AgentRunner:
         agent: Agent,
         execution_id: Optional[int] = None,
         model_name: Optional[str] = None,
-        temperature: float = 0.7
+        temperature: float = 0.7,
+        timeout: Optional[int] = None,
+        timeout_action: str = "log"
     ):
         """
         Initialize the agent runner.
@@ -50,11 +52,20 @@ class AgentRunner:
             execution_id: Optional execution ID for tracking
             model_name: Optional model name override
             temperature: Temperature for LLM
+            timeout: Optional timeout in seconds for agent execution
+            timeout_action: Action to take on timeout ('log', 'alarm', or 'kill')
         """
         self.agent = agent
         self.execution_id = execution_id
         self.model_name = model_name or agent.model_name
         self.temperature = temperature
+        self.timeout = timeout
+        self.timeout_action = timeout_action.lower() if timeout_action else "log"
+        
+        # Validate timeout action
+        if self.timeout_action not in ["log", "alarm", "kill"]:
+            logger.warning(f"Invalid timeout action '{timeout_action}'. Using 'log' instead.")
+            self.timeout_action = "log"
         
         # Initialize LLM client
         self.llm_client = LLMClient(model_name=self.model_name, temperature=self.temperature)
@@ -96,7 +107,65 @@ class AgentRunner:
         Returns:
             Agent's response
         """
-        return asyncio.run(self.arun(input_text))
+        start_time = datetime.now()
+        
+        try:
+            if self.timeout:
+                # Run with timeout
+                try:
+                    return asyncio.run(self._run_with_timeout(input_text))
+                except asyncio.TimeoutError:
+                    elapsed_time = (datetime.now() - start_time).total_seconds()
+                    error_msg = f"Agent execution timed out after {elapsed_time:.2f} seconds (timeout: {self.timeout}s)"
+                    
+                    # Log the timeout
+                    logger.warning(error_msg)
+                    
+                    # Record the timeout in the database if execution_id is provided
+                    if self.execution_id:
+                        with get_db_session() as db:
+                            execution = db.query(AgentExecution).filter(AgentExecution.id == self.execution_id).first()
+                            if execution:
+                                execution.success = False
+                                execution.error = error_msg
+                                execution.completed_at = datetime.now()
+                                db.commit()
+                            
+                            # Add error message to the conversation
+                            message = AgentMessage(
+                                execution_id=self.execution_id,
+                                role="system",
+                                content=error_msg
+                            )
+                            db.add(message)
+                            db.commit()
+                    
+                    # Return appropriate message based on timeout action
+                    if self.timeout_action == "alarm":
+                        return f"⚠️ TIMEOUT ALARM: {error_msg}"
+                    elif self.timeout_action == "kill":
+                        return f"❌ EXECUTION TERMINATED: {error_msg}"
+                    else:  # "log"
+                        return f"I wasn't able to complete the task in the allowed time. {error_msg}"
+            else:
+                # Run without timeout
+                return asyncio.run(self.arun(input_text))
+        except Exception as e:
+            # Handle other exceptions
+            elapsed_time = (datetime.now() - start_time).total_seconds()
+            error_msg = f"Error after {elapsed_time:.2f} seconds: {str(e)}"
+            logger.error(error_msg)
+            
+            if self.execution_id:
+                with get_db_session() as db:
+                    execution = db.query(AgentExecution).filter(AgentExecution.id == self.execution_id).first()
+                    if execution:
+                        execution.success = False
+                        execution.error = error_msg
+                        execution.completed_at = datetime.now()
+                        db.commit()
+            
+            return f"I encountered an error while processing your request: {str(e)}"
     
     async def arun(self, input_text: str) -> str:
         """
@@ -397,6 +466,25 @@ If you don't need to use a tool, respond with your regular text answer."""
         except Exception as e:
             logger.error(f"Error loading tool functions: {str(e)}")
             return {}
+    
+    async def _run_with_timeout(self, input_text: str) -> str:
+        """
+        Run the agent with a timeout.
+        
+        Args:
+            input_text: Input to send to the agent
+            
+        Returns:
+            Agent's response
+            
+        Raises:
+            asyncio.TimeoutError: If the execution exceeds the timeout
+        """
+        # Create a task for running the agent
+        task = asyncio.create_task(self.arun(input_text))
+        
+        # Wait for the task to complete or timeout
+        return await asyncio.wait_for(task, timeout=self.timeout)
     
     async def arun_stream(self, input_text: str):
         """

@@ -290,6 +290,8 @@ def run_agent(
     agent_id: int = typer.Argument(..., help="ID of the agent to run"),
     input: str = typer.Option(None, "--input", "-i", help="Input to send to the agent"),
     interactive: bool = typer.Option(False, "--interactive", help="Run in interactive mode"),
+    timeout: Optional[int] = typer.Option(None, "--timeout", "-t", help="Timeout in seconds for agent execution"),
+    timeout_action: str = typer.Option("log", "--timeout-action", "-a", help="Action on timeout: log, alarm, or kill"),
 ):
     """Run an AI agent with the given input."""
     try:
@@ -316,8 +318,13 @@ def run_agent(
             db.commit()
             db.refresh(execution)
             
-            # Initialize runner
-            runner = AgentRunner(agent=agent, execution_id=execution.id)
+            # Initialize runner with timeout if specified
+            runner = AgentRunner(
+                agent=agent, 
+                execution_id=execution.id,
+                timeout=timeout,
+                timeout_action=timeout_action
+            )
             
             if interactive:
                 # Interactive mode
