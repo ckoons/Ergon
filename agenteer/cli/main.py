@@ -287,7 +287,7 @@ def list_agents():
 
 @app.command("run")
 def run_agent(
-    agent_id: int = typer.Argument(..., help="ID of the agent to run"),
+    agent_identifier: str = typer.Argument(..., help="Name or ID of the agent to run"),
     input: str = typer.Option(None, "--input", "-i", help="Input to send to the agent"),
     interactive: bool = typer.Option(False, "--interactive", help="Run in interactive mode"),
     timeout: Optional[int] = typer.Option(None, "--timeout", "-t", help="Timeout in seconds for agent execution"),
@@ -304,13 +304,40 @@ def run_agent(
             console.print("[yellow]Database not initialized. Running initialization...[/yellow]")
             init_db()
         
-        # Get agent
+        # Get agent by ID or name
         with get_db_session() as db:
-            agent = db.query(Agent).filter(Agent.id == agent_id).first()
+            # Check if identifier is an integer (likely an ID)
+            try:
+                agent_id = int(agent_identifier)
+                agent = db.query(Agent).filter(Agent.id == agent_id).first()
+                if agent:
+                    identifier_type = "ID"
+                else:
+                    # Fallback to name search if ID not found
+                    agent = db.query(Agent).filter(Agent.name == agent_identifier).first()
+                    identifier_type = "name"
+            except ValueError:
+                # Not an integer, so search by name
+                agent = db.query(Agent).filter(Agent.name == agent_identifier).first()
+                identifier_type = "name"
             
             if not agent:
-                console.print(f"[bold red]Agent with ID {agent_id} not found.[/bold red]")
-                raise typer.Exit(1)
+                # If still not found, try a case-insensitive partial match on name
+                agent = db.query(Agent).filter(Agent.name.ilike(f"%{agent_identifier}%")).first()
+                
+                if agent:
+                    console.print(f"[yellow]Agent with exact {identifier_type} '{agent_identifier}' not found, but found matching agent '{agent.name}'.[/yellow]")
+                else:
+                    console.print(f"[bold red]Agent with {identifier_type} '{agent_identifier}' not found.[/bold red]")
+                    
+                    # Provide helpful suggestions
+                    agents = db.query(Agent).all()
+                    if agents:
+                        console.print("[yellow]Available agents:[/yellow]")
+                        for a in agents:
+                            console.print(f"  {a.id}: {a.name}")
+                    
+                    raise typer.Exit(1)
             
             # Create execution record
             execution = AgentExecution(agent_id=agent.id)
@@ -506,7 +533,7 @@ def preload_docs(
 
 @app.command("delete")
 def delete_agent(
-    agent_id: int = typer.Argument(..., help="ID of the agent to delete"),
+    agent_identifier: str = typer.Argument(..., help="Name or ID of the agent to delete"),
     force: bool = typer.Option(False, "--force", "-f", help="Force deletion without confirmation"),
 ):
     """Delete an AI agent and associated data."""
@@ -519,13 +546,40 @@ def delete_agent(
             console.print("[yellow]Database not initialized. Nothing to delete.[/yellow]")
             raise typer.Exit(1)
         
-        # Get agent info
+        # Get agent by ID or name
         with get_db_session() as db:
-            agent = db.query(Agent).filter(Agent.id == agent_id).first()
+            # Check if identifier is an integer (likely an ID)
+            try:
+                agent_id = int(agent_identifier)
+                agent = db.query(Agent).filter(Agent.id == agent_id).first()
+                if agent:
+                    identifier_type = "ID"
+                else:
+                    # Fallback to name search if ID not found
+                    agent = db.query(Agent).filter(Agent.name == agent_identifier).first()
+                    identifier_type = "name"
+            except ValueError:
+                # Not an integer, so search by name
+                agent = db.query(Agent).filter(Agent.name == agent_identifier).first()
+                identifier_type = "name"
             
             if not agent:
-                console.print(f"[bold red]Agent with ID {agent_id} not found.[/bold red]")
-                raise typer.Exit(1)
+                # If still not found, try a case-insensitive partial match on name
+                agent = db.query(Agent).filter(Agent.name.ilike(f"%{agent_identifier}%")).first()
+                
+                if agent:
+                    console.print(f"[yellow]Agent with exact {identifier_type} '{agent_identifier}' not found, but found matching agent '{agent.name}'.[/yellow]")
+                else:
+                    console.print(f"[bold red]Agent with {identifier_type} '{agent_identifier}' not found.[/bold red]")
+                    
+                    # Provide helpful suggestions
+                    agents = db.query(Agent).all()
+                    if agents:
+                        console.print("[yellow]Available agents:[/yellow]")
+                        for a in agents:
+                            console.print(f"  {a.id}: {a.name}")
+                    
+                    raise typer.Exit(1)
             
             # Confirm deletion
             if not force:

@@ -169,20 +169,23 @@ agenteer create -n "MailAgent" -d "Email management assistant" -t mail
 There are several ways to run your agents:
 
 ```bash
-# List available agents to get their IDs
+# List available agents
 agenteer list
 
-# Run an agent with a specific input
-agenteer run AGENT_ID -i "Your input here"
+# Run an agent by ID
+agenteer run 3 -i "Your input here"
+
+# Run an agent by name (more human-friendly)
+agenteer run "MyAgent" -i "Your input here"
 
 # Run an agent in interactive mode (conversation)
-agenteer run AGENT_ID --interactive
+agenteer run "MyAgent" --interactive
 
 # Run an agent with a timeout (30 seconds)
-agenteer run AGENT_ID -i "Your input here" --timeout 30
+agenteer run "GitHubAgent" -i "Your input here" --timeout 30
 
 # Set timeout action (log, alarm, or kill)
-agenteer run AGENT_ID -i "Your input here" --timeout 30 --timeout-action alarm
+agenteer run "MailAgent" -i "Your input here" --timeout 30 --timeout-action alarm
 ```
 
 ### Agent Timeout Management
@@ -208,13 +211,13 @@ Agenteer provides built-in timeout functionality to monitor and control agent ex
 
 ```bash
 # Set a 30-second timeout with default "log" action
-agenteer run AGENT_ID -i "Research quantum computing" --timeout 30
+agenteer run "ResearchAgent" -i "Research quantum computing" --timeout 30
 
 # Use "alarm" action to get a more noticeable timeout warning
-agenteer run AGENT_ID -i "Analyze this dataset" --timeout 60 --timeout-action alarm
+agenteer run "DataAgent" -i "Analyze this dataset" --timeout 60 --timeout-action alarm
 
 # Use "kill" action to forcibly terminate long-running operations
-agenteer run AGENT_ID -i "Complex task" --timeout 120 --timeout-action kill
+agenteer run "ComplexAgent" -i "Complex task" --timeout 120 --timeout-action kill
 ```
 
 ### Managing Agents
@@ -225,11 +228,14 @@ You can manage your agents with the following commands:
 # List all agents
 agenteer list
 
-# Delete an agent (with confirmation prompt)
-agenteer delete AGENT_ID
+# Delete an agent by ID (with confirmation prompt)
+agenteer delete 3
+
+# Delete an agent by name (with confirmation prompt)
+agenteer delete "TestAgent"
 
 # Force delete an agent without confirmation
-agenteer delete AGENT_ID --force
+agenteer delete "MyAgent" --force
 ```
 
 ### Using the Web UI
