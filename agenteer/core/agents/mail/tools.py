@@ -110,7 +110,7 @@ def mail_tool_definitions() -> List[Dict[str, Any]]:
                         "html": {
                             "type": "boolean",
                             "description": "Whether to send as HTML email",
-                            "default": false
+                            "default": False
                         },
                         "cc": {
                             "type": "string",
@@ -145,7 +145,7 @@ def mail_tool_definitions() -> List[Dict[str, Any]]:
                         "html": {
                             "type": "boolean",
                             "description": "Whether to send as HTML email",
-                            "default": false
+                            "default": False
                         }
                     },
                     "required": ["message_id", "body"]

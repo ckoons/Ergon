@@ -213,6 +213,269 @@ If you see `Bind for 0.0.0.0:8501 failed: port is already allocated`:
 - Run `docker ps` to find and stop the container
 - Or use a different port: `-p 8502:8501`
 
+## Current Development Work
+
+### Mail Agent Status
+
+As of the latest development cycle, we have:
+
+1. **Feature Branch**: Currently implementing Phase 2 features
+   - ✅ Added Microsoft Outlook/Microsoft 365 provider support
+   - ✅ Implemented HTML email composition for both Gmail and Outlook
+   - 🔄 Developing attachment handling capability
+   - 🔄 Working on email threading and conversation view
+
+2. **Merge Plan**:
+   - Complete testing of Phase 1 functionality on main branch
+   - Test current feature branch development (Outlook + HTML email)  
+   - Complete and test remaining Phase 2 features
+   - Merge feature branch to main
+
+3. **Key File Structure**:
+   - `agenteer/core/agents/mail/tools.py`: Tool definitions for agents
+   - `agenteer/core/agents/mail/service.py`: Mail service abstraction
+   - `agenteer/core/agents/mail/providers.py`: Provider implementations (Gmail, Outlook)
+   - `agenteer/core/agents/generators/mail_generator.py`: Mail agent generation
+
+4. **Known Issues**:
+   - Gmail requires specific content type handling for HTML emails
+   - Outlook authentication requires manual code entry (needs improved UX)
+   - Need to implement more robust error handling for timeouts
+   - Need better handling of message attachments
+
+### UI Integration
+
+The Mail Agent will have dedicated UI components for better user experience:
+
+1. **Mail Agent Creation Page**
+   - Form to create a new Mail Agent with options for:
+     - Provider selection (Gmail, Outlook)
+     - Custom name and description
+     - Access level configuration
+     - Template selection
+
+2. **Mail Agent UI Components**
+   - Inbox view with sorting/filtering
+   - Message detail view with HTML rendering
+   - Compose email interface with rich text editor
+   - Settings panel for provider configuration
+
+3. **Implementation Plan**
+   ```python
+   # UI route for Mail Agent in streamlit_app.py
+   elif page == "Mail":
+       st.title("Mail Agent")
+       
+       # Check if authenticated
+       if not mail_service.is_authenticated():
+           st.warning("Please authenticate with your email provider")
+           provider = st.selectbox("Select Provider", ["Gmail", "Outlook"])
+           if st.button("Authenticate"):
+               auth_url = mail_service.get_auth_url(provider.lower())
+               st.markdown(f"[Click here to authenticate]({auth_url})")
+       else:
+           # Show inbox
+           tab1, tab2, tab3 = st.tabs(["Inbox", "Compose", "Settings"])
+           
+           with tab1:
+               messages = mail_service.get_inbox_messages()
+               display_inbox(messages)
+               
+           with tab2:
+               compose_email_form()
+               
+           with tab3:
+               mail_settings()
+   ```
+
+4. **Agent Interaction Flows**
+   - **Basic Mail Reading Flow**:
+     1. User asks "Show me my recent emails"
+     2. Agent uses get_inbox tool
+     3. Agent formats and displays email summary
+     4. User can click to view full email or reply
+     
+   - **Email Composition Flow**:
+     1. User asks "Send an email to person@example.com"
+     2. Agent prompts for subject and body
+     3. Agent confirms before sending
+     4. Agent sends email and confirms delivery
+
+## Testing Plan
+
+### Mail Agent Testing Progress
+
+We've successfully implemented and tested the following components:
+
+#### Phase 1 Testing (Main Branch) - March 10, 2025
+1. **Unit Tests Created and Passing:**
+   - `test_mail_tools.py` - Verifying mail tool definitions, registration, and basic functionality
+   - `test_mail_service.py` - Testing the mail service initialization and configuration
+   - `test_gmail_integration.py` - Testing Gmail provider functionality (authentication, reading inbox, sending messages)
+   - `test_html_emails.py` - Testing HTML email formatting capabilities
+   - `test_mail_generator.py` - Testing mail agent generation
+
+2. **Agent Creation Successful:**
+   - Created "TestMailAgent" with mail agent type
+   - Ready for OAuth authentication testing
+
+3. **Next Steps:**
+   - Set up proper Gmail API credentials for OAuth testing
+   - Test the complete OAuth authentication flow
+   - Verify inbox reading functionality with real Gmail account
+   - Test sending and replying to emails
+
+#### Phase 2 Testing (Feature Branch)
+1. **Outlook/Microsoft 365 Tests**
+   - OAuth authentication flow for Microsoft
+   - Reading Outlook inbox
+   - Sending emails via Outlook
+   - Replying to messages
+   - Searching Outlook emails
+
+2. **HTML Email Tests**
+   - Sending emails with HTML formatting
+   - Testing content type handling
+   - Verifying HTML rendering in received emails
+   - Testing HTML in replies
+
+3. **Pending Feature Tests** (To be implemented)
+   - Attachment handling
+   - Email threading/conversation view
+   - Draft management
+   - Move/delete operations
+   - Enhanced folder management
+
+#### Test Implementation Plan
+
+We need to create the following test files in the `tests/agents/mail/` directory:
+
+```
+tests/
+  agents/
+    mail/
+      __init__.py
+      test_gmail_integration.py    # Tests for Gmail provider
+      test_outlook_integration.py  # Tests for Outlook provider
+      test_html_emails.py          # Tests for HTML email functionality
+      test_mail_tools.py           # Tests for mail tool definitions and registration
+      test_mail_service.py         # Tests for MailService abstraction layer
+      conftest.py                  # Shared fixtures for mail tests
+```
+
+The test files should use pytest fixtures to mock the email providers and avoid making actual API calls during testing. For manual testing with real APIs, we'll need to create separate integration test scripts.
+
+#### Test Environment Setup
+```bash
+# Clone the repository
+git clone https://github.com/username/Agenteer.git
+cd Agenteer
+
+# Set up virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -e .
+
+# Create test directory structure if it doesn't exist
+mkdir -p tests/agents/mail
+
+# Run tests once implemented
+python -m pytest tests/agents/mail/test_mail_tools.py -v
+python -m pytest tests/agents/mail/test_mail_service.py -v
+python -m pytest tests/agents/mail/test_gmail_integration.py -v
+python -m pytest tests/agents/mail/test_outlook_integration.py -v
+python -m pytest tests/agents/mail/test_html_emails.py -v
+```
+
+#### Mock Testing vs. Real API Testing
+
+For CI/CD pipelines, we'll use mock testing to avoid dependencies on external services. For development, we'll need to test with real email accounts:
+
+1. **Mock Testing** (CI/CD-friendly)
+   ```python
+   # Example mock test for Gmail authentication
+   def test_gmail_auth_flow(mocker):
+       # Mock Gmail OAuth flow
+       mock_flow = mocker.patch('google_auth_oauthlib.flow.InstalledAppFlow')
+       mock_flow.from_client_secrets_file.return_value.run_local_server.return_value = mock_credentials
+       
+       # Test authentication
+       provider = GmailProvider(credentials_file="test_creds.json")
+       result = asyncio.run(provider.authenticate())
+       
+       assert result is True
+       assert provider.credentials is not None
+   ```
+
+2. **Real API Testing** (Manual Development Testing)
+   - Requires real Gmail/Outlook test accounts
+   - Should be run manually, not in CI pipelines
+   - Will need proper OAuth credentials configuration
+   - Should clean up after tests (delete test emails, etc.)
+
+## Development Roadmap
+
+### Mail Agent Development Plan
+
+We are implementing the mail agent in three phases:
+
+#### Phase 1 (Completed)
+- Basic Gmail integration with OAuth authentication
+- Core mail operations (read, send, reply, search)
+- Mail service abstraction layer
+- Agent tools for LLM integration
+
+#### Phase 2 (In Progress)
+- ✅ Outlook/Microsoft 365 support
+- ✅ HTML email composition
+- Attachment handling (download/view)
+- Email threading/conversation view
+- Draft management (save/edit/send)
+- Move/delete emails
+- Better folder management
+
+#### Phase 3 (Planned)
+- Email templates
+- Email analytics (response times, frequency)
+- Auto-categorization
+- Smart follow-up reminders
+- Contact management integration
+- Calendar integration for scheduling
+
+### Pending Tests
+
+#### Mail Agent Testing
+- Gmail OAuth authentication flow
+- Reading inbox messages
+- Sending test emails
+- Replying to messages
+- Testing HTML email rendering
+- Testing Outlook authentication
+- Testing attachment handling (when implemented)
+
+#### LangGraph Documentation
+- Verify LangGraph documentation crawling
+- Test LangGraph document retrieval
+- Validate search accuracy for LangGraph content
+
+### Commit Message Format
+
+Always use this format for commit messages:
+```
+feat: Descriptive title for the changes
+
+Design & Engineering Guidance:
+- Bullet point describing key implementation details
+- Another bullet point with important design decisions
+- Additional context about the implementation
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+Designed & Engineering Guidance by Casey Koons <cskoons@gmail.com>
+Co-Authored-By: Casey Koons <cskoons@gmail.com> & Claude <noreply@anthropic.com>
+```
+
 ## Project Organization
 
 - `agenteer/`: Main package
