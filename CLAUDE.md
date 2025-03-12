@@ -78,6 +78,9 @@ agenteer create -n "GitHubAgent" -d "Description" -t github
 # Create a Mail agent
 agenteer create -n "MailAgent" -d "Description" -t mail
 
+# Create a Browser agent
+agenteer create -n "BrowserAgent" -d "Web browsing agent" -t browser
+
 # List all agents
 agenteer list
 
@@ -89,6 +92,18 @@ agenteer preload-docs --source anthropic
 
 # Check system status
 agenteer status
+
+# Run a multi-agent flow
+agenteer flow "Research and summarize the latest AI trends" --agent "BrowserAgent" --agent "ResearchAgent"
+
+# Create a new workflow through conversation
+agenteer workflow-create "A workflow that finds trending GitHub repos and emails me a summary"
+
+# List all saved workflows
+agenteer workflow-list
+
+# Run a saved workflow with parameters
+agenteer workflow-run 12345 --parameters '{"email": "user@example.com", "topics": "AI, Python"}'
 ```
 
 ## Docker and Platform Compatibility
@@ -214,6 +229,128 @@ If you see `Bind for 0.0.0.0:8501 failed: port is already allocated`:
 - Or use a different port: `-p 8502:8501`
 
 ## Latest Development Updates (March 11, 2025)
+
+### Mail Agent Enhancement
+
+**Project Goal**: Enhance the Mail Agent with both OAuth and IMAP/SMTP support for broader compatibility.
+
+#### Implemented Features (March 11, 2025)
+1. **Dual Authentication Support**
+   - Added IMAP/SMTP provider alongside existing OAuth
+   - Created authentication handlers for both methods
+   - Implemented secure password handling with redaction
+
+2. **Setup Wizard**
+   - Interactive setup for guided configuration
+   - Non-interactive mode for scripting/automation
+   - Auto-detection of server settings for common providers (Gmail, Outlook, Yahoo)
+
+3. **Security Improvements**
+   - Password redaction in logs and displays
+   - Warning systems for insecure password storage
+   - Documentation of security best practices
+
+4. **CLI Integration**
+   - Added `setup-mail` command with comprehensive options
+   - Support for all authentication methods
+   - Security confirmations for sensitive operations
+
+5. **Testing**
+   - Created test script for IMAP provider validation
+   - Fixed mail agent type detection
+
+#### Browser Agent Fixes
+1. **API Compatibility**
+   - Updated for compatibility with browser-use 0.1.40
+   - Fixed initialization and context handling
+   - Corrected method signatures for actions
+
+2. **Improved Error Handling**
+   - Added better error reporting
+   - Enhanced screenshot functionality
+   - Fixed page navigation issues
+
+#### Next Steps
+1. **Security Enhancements**
+   - Implement encrypted credential storage
+   - Add environment variable support for secrets
+   - Create secure credential rotation
+
+2. **Feature Expansion**
+   - Complete attachment handling
+   - Implement email threading
+   - Add conversation view UI
+
+3. **Testing**
+   - Complete end-to-end tests for both auth methods
+   - Add automated test suite for CI/CD
+
+## Latest Development Updates (March 13, 2025)
+
+### Reusable Workflow System Plan
+
+**Project Goal**: Create a conversational workflow system that allows users to create, save, and run reusable workflows through natural language chat.
+
+#### Quick-Start Implementation (1-2 weeks)
+1. **Workflow Storage & Persistence** (1-2 days)
+   - Create JSON-based storage for workflows
+   - Implement save/load/list/delete operations
+   - Store workflows in user directory
+
+2. **Parameter Substitution** (1-2 days)
+   - Add parameter extraction from workflow steps
+   - Implement parameter substitution in step execution
+   - Support {parameter_name} syntax in step descriptions
+
+3. **Conversation Workflow Creation** (2-3 days)
+   - Create LLM-powered workflow creator class
+   - Implement guided conversation flow for workflow design
+   - Extract parameters and agent types automatically
+
+4. **CLI Integration** (1-2 days)
+   - Add workflow-create command with conversation flow
+   - Implement workflow-run command with parameter input
+   - Add workflow-list and workflow-delete commands
+
+#### Full Implementation Roadmap (4-6 weeks)
+1. **Database Migration** (1 week)
+   - Create Workflow and WorkflowParameter models
+   - Migrate from JSON files to database storage
+   - Add version control for workflows
+
+2. **Advanced Parameterization** (1-2 weeks)
+   - Add type validation for parameters
+   - Implement default values and optional parameters
+   - Create conditional branching based on parameters
+
+3. **UI Integration** (1-2 weeks)
+   - Add workflow management to Streamlit UI
+   - Create visual workflow builder/editor
+   - Implement workflow execution monitoring
+
+4. **Intelligent Agent/Workflow Selection** (1-2 weeks)
+   - Add existing agent/workflow awareness
+   - Implement similarity matching for tasks
+   - Create smart reuse vs. create-new recommendations
+
+### Browser Agent & Flow System Integration
+
+1. **Browser Agent Integration**
+   - ✅ Added browser automation capabilities from OpenManus
+   - ✅ Created browser agent type with navigation, interaction, and content extraction
+   - ✅ Implemented browser service using browser-use library
+   - ✅ Added browser tool definitions and registration
+   - 🔄 Completing debugging of browser integration
+
+2. **Flow System Integration**
+   - ✅ Implemented planning flow for complex multi-step tasks
+   - ✅ Created plan and step type definitions
+   - ✅ Added planning tools for LLM-based planning
+   - ✅ Implemented step execution with appropriate agent routing
+   - ✅ Added progress tracking and reporting
+   - ✅ Created CLI command for running flows
+
+### Previous Updates (March 11, 2025)
 
 ### Key Accomplishments
 
@@ -515,3 +652,121 @@ Co-Authored-By: Casey Koons <cskoons@gmail.com> & Claude <noreply@anthropic.com>
     - `vector_store/`: Vector database functionality
   - `ui/`: Streamlit UI application
   - `utils/`: Utility functions and configuration
+  
+## Browser Agent
+
+The Browser Agent allows users to automate web browsing tasks via Agenteer. This integration was inspired by the OpenManus project.
+
+### Key Components
+
+- `agenteer/core/agents/browser/service.py`: Browser service using browser-use library
+- `agenteer/core/agents/browser/tools.py`: Tool definitions for browser operations
+- `agenteer/core/agents/browser/registry.py`: Tool registry and execution logic
+- `agenteer/core/agents/generators/browser_generator.py`: Browser agent generator
+
+### Browser Capabilities
+
+The Browser Agent can:
+
+1. Navigate to URLs
+2. Extract text and HTML from web pages
+3. Click on elements using CSS selectors
+4. Type text into input fields
+5. Take screenshots
+6. Scroll web pages
+7. Wait for specified times
+8. Get information about elements on the page
+
+### Setup and Usage
+
+```bash
+# Install dependencies
+pip install browser-use==0.1.40 playwright==1.49.1
+playwright install
+
+# Create a browser agent
+agenteer create -n "WebBrowser" -d "Web browsing agent" -t browser
+
+# Run the agent in interactive mode
+agenteer run "WebBrowser" --interactive
+
+# Example commands
+"Go to github.com and find the trending repositories"
+"Search for information about Agenteer on GitHub"
+"Go to weather.com and get the forecast for San Francisco"
+```
+
+### Configuration
+
+You can configure browser behavior in your .env file:
+```
+# Run browser headlessly (no visible window)
+BROWSER_HEADLESS=true
+
+# Run browser with visible window
+BROWSER_HEADLESS=false
+```
+
+### Implementation Notes
+
+This integration uses the browser-use library which in turn uses Playwright. The browser-use library provides a simplified interface for browser automation that works well with LLM agents.
+
+## Flow System
+
+The Flow System allows users to orchestrate multiple agents to tackle complex multi-step tasks. This integration was inspired by the OpenManus project's planning capabilities.
+
+### Key Components
+
+- `agenteer/core/flow/types.py`: Flow, Plan, and Step type definitions
+- `agenteer/core/flow/base.py`: Base flow interface
+- `agenteer/core/flow/planning.py`: Planning-based flow implementation
+- `agenteer/core/flow/factory.py`: Factory for creating different flow types
+- `agenteer/core/flow/tools.py`: Tools for working with plans
+
+### Flow Capabilities
+
+The Flow System can:
+
+1. Create structured plans for complex tasks
+2. Break down tasks into smaller, actionable steps
+3. Match steps to appropriate specialized agents
+4. Track plan execution progress
+5. Handle step failures and retries
+6. Provide detailed execution reports
+
+### Flow Types
+
+1. **Planning Flow**: LLM creates a detailed plan and executes it step by step
+2. **Simple Flow**: Direct execution using a single agent (no planning)
+
+### Setup and Usage
+
+```bash
+# Create different agent types for specialized tasks
+agenteer create -n "WebBrowser" -d "Web browsing agent" -t browser
+agenteer create -n "Researcher" -d "General purpose agent for research" -t standard
+agenteer create -n "CodeHelper" -d "Code-focused assistant" -t standard
+
+# Run a planning flow with specific agents
+agenteer flow "Find latest Python tutorials on GitHub, summarize the top 3, and create a learning plan" --agent WebBrowser --agent Researcher --agent CodeHelper
+
+# Run a planning flow with all available agents
+agenteer flow "Research the latest trends in AI and create a summary report"
+
+# Run a flow with a maximum step count
+agenteer flow "Complex multi-step task" --max-steps 20
+
+# Run a flow with a timeout
+agenteer flow "Time-sensitive task" --timeout 300
+```
+
+### Implementation Notes
+
+The planning flow works by:
+1. Using an LLM to create a structured plan
+2. Breaking the task into steps with agent type annotations
+3. Executing each step with the most appropriate agent
+4. Tracking progress and updating the plan
+5. Generating a detailed summary report
+
+Flow execution is fully configurable, with options for maximum steps, timeout, and agent selection.

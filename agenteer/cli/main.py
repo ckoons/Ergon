@@ -119,7 +119,7 @@ def create(
     name: str = typer.Option(..., "--name", "-n", help="Name for the agent"),
     description: str = typer.Option(None, "--description", "-d", help="Description for the agent"),
     model: str = typer.Option(None, "--model", "-m", help="Model to use (defaults to settings)"),
-    agent_type: str = typer.Option("standard", "--type", "-t", help="Type of agent to create (standard, github, mail)"),
+    agent_type: str = typer.Option("standard", "--type", "-t", help="Type of agent to create (standard, github, mail, browser)"),
 ):
     """Create a new AI agent with the given specifications."""
     try:
@@ -143,7 +143,7 @@ def create(
             raise typer.Exit(1)
         
         # Validate agent type
-        valid_types = ["standard", "github", "mail"]
+        valid_types = ["standard", "github", "mail", "browser"]
         if agent_type not in valid_types:
             console.print(f"[bold red]Invalid agent type: {agent_type}. Valid types: {', '.join(valid_types)}[/bold red]")
             raise typer.Exit(1)
@@ -233,6 +233,16 @@ def create(
             console.print("   - Configure authentication with a redirect URI")
             console.print("   - Create a client secret (or use public client flow)")
             console.print("   - Set OUTLOOK_CLIENT_ID in your .env file\n")
+            console.print(f"Run the agent with: [bold]agenteer run {agent_id} --interactive[/bold]")
+        elif agent_type == "browser":
+            console.print("\n[bold cyan]Browser Agent Setup Instructions:[/bold cyan]")
+            console.print("1. Make sure you have the necessary dependencies installed:")
+            console.print("   - browser-use: pip install browser-use==0.1.40")
+            console.print("   - playwright: pip install playwright==1.49.1")
+            console.print("2. Install browser binaries: playwright install")
+            console.print("3. For headless mode control, set in your .env file:")
+            console.print("   - BROWSER_HEADLESS=true (or false for visible browser)")
+            console.print("4. For screenshots, they'll be saved to ~/agenteer_screenshots by default\n")
             console.print(f"Run the agent with: [bold]agenteer run {agent_id} --interactive[/bold]")
         
     except Exception as error:
@@ -374,7 +384,7 @@ def run_agent(
                     
                     # Run agent
                     with console.status("[bold green]Agent thinking..."):
-                        response = runner.run(user_input)
+                        response = asyncio.run(runner.run(user_input))
                     
                     # Print response with consistent agent name display
                     console.print(f"[bold cyan]{agent.name}[/bold cyan] [dim](ID: {agent.id})[/dim]: {response}")
@@ -406,7 +416,7 @@ def run_agent(
                     db.commit()
                     
                     # Run agent
-                    response = runner.run(input)
+                    response = asyncio.run(runner.run(input))
                     
                     # Record assistant message
                     message = AgentMessage(
@@ -696,6 +706,167 @@ def status():
         
     except Exception as e:
         console.print(f"[bold red]Error checking status: {str(e)}[/bold red]")
+        raise typer.Exit(1)
+
+
+@app.command("flow")
+def run_flow(
+    prompt: str = typer.Argument(..., help="The prompt to run the flow with"),
+    flow_type: str = typer.Option("planning", "--type", "-t", help="Flow type (planning, simple)"),
+    agent_names: List[str] = typer.Option([], "--agent", "-a", help="Agent names to include in the flow"),
+    max_steps: int = typer.Option(30, "--max-steps", "-m", help="Maximum number of steps for planning flow"),
+    timeout: Optional[int] = typer.Option(None, "--timeout", help="Timeout in seconds for flow execution"),
+):
+    """Run a flow with multiple agents for complex tasks."""
+    try:
+        from agenteer.core.agents.runner import AgentRunner
+        from agenteer.core.database.engine import get_db_session
+        from agenteer.core.database.models import Agent
+        from agenteer.core.flow.factory import FlowFactory
+        from agenteer.core.flow.types import FlowType
+        
+        # Initialize database if not exists
+        if not os.path.exists(settings.database_url.replace("sqlite:///", "")):
+            console.print("[yellow]Database not initialized. Running initialization...[/yellow]")
+            init_db()
+        
+        # Load the specified agents
+        agents = {}
+        with get_db_session() as db:
+            if agent_names:
+                # Use specified agents
+                for agent_name in agent_names:
+                    # Try by ID first, then name
+                    try:
+                        agent_id = int(agent_name)
+                        agent = db.query(Agent).filter(Agent.id == agent_id).first()
+                    except ValueError:
+                        agent = db.query(Agent).filter(Agent.name == agent_name).first()
+                        
+                    if not agent:
+                        # Try partial name match
+                        agent = db.query(Agent).filter(Agent.name.ilike(f"%{agent_name}%")).first()
+                        
+                    if agent:
+                        # Create agent runner
+                        runner = AgentRunner(agent=agent, timeout=timeout)
+                        agents[agent.name.lower()] = runner
+                    else:
+                        console.print(f"[bold red]Agent '{agent_name}' not found.[/bold red]")
+            else:
+                # No agents specified, get all agents
+                all_agents = db.query(Agent).all()
+                if all_agents:
+                    for agent in all_agents:
+                        runner = AgentRunner(agent=agent, timeout=timeout)
+                        agents[agent.name.lower()] = runner
+                
+        if not agents:
+            console.print("[bold red]No agents available. Create agents first with 'agenteer create'.[/bold red]")
+            raise typer.Exit(1)
+            
+        # Create flow
+        try:
+            flow_enum = FlowType(flow_type.lower())
+        except ValueError:
+            console.print(f"[bold red]Invalid flow type: {flow_type}. Valid types: planning, simple[/bold red]")
+            raise typer.Exit(1)
+            
+        flow = FlowFactory.create_flow(
+            flow_type=flow_enum,
+            agents=agents,
+            max_steps=max_steps
+        )
+        
+        # Execute flow
+        with console.status(f"[bold green]Running {flow_type} flow with {len(agents)} agents..."):
+            result = asyncio.run(flow.execute(prompt))
+            
+        console.print("[bold green]Flow execution complete![/bold green]\n")
+        console.print(result)
+        
+    except Exception as e:
+        console.print(f"[bold red]Error running flow: {str(e)}[/bold red]")
+        import traceback
+        console.print(traceback.format_exc())
+        raise typer.Exit(1)
+
+
+@app.command("setup-mail")
+def setup_mail(
+    provider: str = typer.Option("interactive", help="Mail provider type (gmail, outlook, imap, or interactive)"),
+    interactive: bool = typer.Option(True, help="Use interactive setup"),
+    # IMAP parameters
+    email: str = typer.Option(None, help="Email address (for IMAP provider)"),
+    password: str = typer.Option(None, help="Password (for IMAP provider, not recommended via command line)"),
+    imap_server: str = typer.Option(None, help="IMAP server (for IMAP provider)"),
+    smtp_server: str = typer.Option(None, help="SMTP server (for IMAP provider)"),
+    imap_port: int = typer.Option(993, help="IMAP port (for IMAP provider)"),
+    smtp_port: int = typer.Option(587, help="SMTP port (for IMAP provider)"),
+    use_ssl: bool = typer.Option(True, help="Use SSL for IMAP (for IMAP provider)"),
+    use_tls: bool = typer.Option(True, help="Use TLS for SMTP (for IMAP provider)"),
+    # OAuth parameters
+    credentials_file: str = typer.Option(None, help="Path to OAuth credentials file (for Gmail/Outlook)")
+):
+    """Set up mail provider for Agenteer.
+    
+    For non-interactive IMAP setup, provide email, password, and server information.
+    For Gmail, provide credentials_file or place credentials at ~/.agenteer/gmail_credentials.json
+    For Outlook, set OUTLOOK_CLIENT_ID in your .env file.
+    """
+    try:
+        from agenteer.core.agents.mail.setup import setup_mail_provider
+        
+        if provider.lower() == "interactive":
+            provider_arg = None
+        else:
+            if provider.lower() not in ["gmail", "outlook", "imap"]:
+                console.print(f"[bold red]Invalid provider: {provider}[/bold red]")
+                console.print("Valid providers: gmail, outlook, imap")
+                raise typer.Exit(1)
+            provider_arg = provider.lower()
+        
+        # For non-interactive IMAP setup, check required params
+        if not interactive and provider_arg == "imap" and (not email or not password):
+            console.print("[bold red]Email and password are required for non-interactive IMAP setup[/bold red]")
+            raise typer.Exit(1)
+            
+        # Warn about password on command line
+        if password:
+            console.print("[bold red]WARNING: SECURITY RISK[/bold red]")
+            console.print("[bold yellow]Providing passwords on the command line is not secure:[/bold yellow]")
+            console.print("[yellow]- Password may be visible in your shell history or process list[/yellow]")
+            console.print("[yellow]- Password will be stored in plain text in the configuration file[/yellow]")
+            console.print("[yellow]- In production, use environment variables or a secure credential store[/yellow]")
+            
+            if not typer.confirm("Do you want to continue with this insecure method?"):
+                console.print("[green]Aborted. Consider using the interactive setup instead.[/green]")
+                raise typer.Exit(0)
+            
+        # Run setup
+        with console.status(f"[bold green]Setting up {provider} mail provider..."):
+            result = asyncio.run(setup_mail_provider(
+                provider_type=provider_arg,
+                interactive=interactive,
+                email_address=email,
+                password=password,
+                imap_server=imap_server,
+                smtp_server=smtp_server,
+                imap_port=imap_port,
+                smtp_port=smtp_port,
+                use_ssl=use_ssl,
+                use_tls=use_tls,
+                credentials_file=credentials_file
+            ))
+        
+        if result:
+            console.print(f"[bold green]✓ Mail setup completed successfully![/bold green]")
+        else:
+            console.print(f"[bold red]✗ Mail setup failed.[/bold red]")
+            raise typer.Exit(1)
+            
+    except Exception as e:
+        console.print(f"[bold red]Error setting up mail: {str(e)}[/bold red]")
         raise typer.Exit(1)
 
 

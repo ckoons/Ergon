@@ -37,8 +37,8 @@ def mail_tool_definitions() -> List[Dict[str, Any]]:
                     "properties": {
                         "provider": {
                             "type": "string",
-                            "description": "Email provider (gmail, outlook, etc.)",
-                            "enum": ["gmail"]
+                            "description": "Email provider (gmail, outlook, imap)",
+                            "enum": ["gmail", "outlook", "imap"]
                         }
                     },
                     "required": ["provider"]

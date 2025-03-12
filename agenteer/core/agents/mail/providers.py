@@ -1071,7 +1071,7 @@ def get_mail_provider(provider_type: str = "gmail", **kwargs) -> Optional[MailPr
     Factory function to create a mail provider instance.
     
     Args:
-        provider_type: Type of provider to create (gmail, outlook, etc.)
+        provider_type: Type of provider to create (gmail, outlook, imap, etc.)
         **kwargs: Provider-specific arguments
         
     Returns:
@@ -1081,8 +1081,27 @@ def get_mail_provider(provider_type: str = "gmail", **kwargs) -> Optional[MailPr
         return GmailProvider(**kwargs)
     elif provider_type.lower() == "outlook":
         return OutlookProvider(**kwargs)
+    elif provider_type.lower() == "imap":
+        # Import here to avoid circular imports
+        from .imap_provider import ImapSmtpProvider
+        
+        # Get email domain for auto-configuration
+        email = kwargs.get('email_address', '')
+        email_domain = email.split('@')[-1] if '@' in email else ''
+        
+        # Set default servers based on common email providers if not specified
+        if email_domain == 'gmail.com' and 'imap_server' not in kwargs:
+            kwargs['imap_server'] = 'imap.gmail.com'
+            kwargs['smtp_server'] = 'smtp.gmail.com'
+        elif email_domain in ('outlook.com', 'hotmail.com', 'live.com') and 'imap_server' not in kwargs:
+            kwargs['imap_server'] = 'outlook.office365.com'
+            kwargs['smtp_server'] = 'smtp.office365.com'
+        elif email_domain == 'yahoo.com' and 'imap_server' not in kwargs:
+            kwargs['imap_server'] = 'imap.mail.yahoo.com'
+            kwargs['smtp_server'] = 'smtp.mail.yahoo.com'
+        
+        return ImapSmtpProvider(**kwargs)
     
-    # Add more providers as implemented
-    
+    # Unknown provider type
     logger.error(f"Unsupported mail provider type: {provider_type}")
     return None

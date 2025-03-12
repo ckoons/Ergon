@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     # Mail provider settings
     outlook_client_id: Optional[str] = None
     
+    # Browser settings
+    browser_headless: bool = True
+    
     # Model settings
     default_model: str = "gpt-4o-mini"
     use_local_models: bool = False

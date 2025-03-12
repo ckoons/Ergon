@@ -503,6 +503,20 @@ def generate_agent(
         from agenteer.core.agents.generators.mail_generator import generate_mail_agent
         # Generate mail agent
         return generate_mail_agent(name, description, model_name or settings.default_model)
+    elif agent_type == "browser":
+        # Import the browser generator dynamically to avoid circular imports
+        from agenteer.core.agents.generators.browser_generator import BrowserAgentGenerator
+        # Generate browser agent
+        browser_generator = BrowserAgentGenerator()
+        browser_data = browser_generator.generate(name, description)
+        
+        return {
+            "name": browser_data["name"],
+            "description": browser_data["description"],
+            "system_prompt": browser_data["system_prompt"],
+            "tools": browser_data["tools"],
+            "files": [] # No files for browser agent
+        }
     else:
         return asyncio.run(generator.generate(name, description, tools))
 

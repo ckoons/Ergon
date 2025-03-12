@@ -97,7 +97,7 @@ class AgentRunner:
         
         return working_dir
     
-    def run(self, input_text: str) -> str:
+    async def run(self, input_text: str) -> str:
         """
         Run the agent with the given input.
         
@@ -151,8 +151,8 @@ class AgentRunner:
                     else:  # "log"
                         return f"I wasn't able to complete the task in the allowed time. {error_msg}"
             else:
-                # Run without timeout
-                response = asyncio.run(self.arun(input_text))
+                # Run without timeout - use direct await as we're likely already in an async context
+                response = await self.arun(input_text)
                 
                 # Log successful completion with timing
                 elapsed_time = (datetime.now() - start_time).total_seconds()
@@ -234,6 +234,25 @@ class AgentRunner:
             except ImportError as e:
                 logger.error(f"Failed to import mail tools: {str(e)}")
         
+        # Register browser tools if this is a browser agent
+        if "browser" in self.agent.name.lower() or self.agent.type == "browser":
+            try:
+                from agenteer.core.agents.browser.handler import BrowserToolHandler
+                browser_handler = BrowserToolHandler()
+                # Register browser tool handler
+                for tool in tools:
+                    if tool.name.startswith("browse_"):
+                        # Use a closure to capture each tool name
+                        def create_tool_func(tool_name):
+                            async def tool_func(**params):
+                                return await browser_handler.execute_tool(tool_name, params)
+                            return tool_func
+                        
+                        # Register the tool function
+                        tool_funcs[tool.name] = create_tool_func(tool.name)
+            except ImportError as e:
+                logger.error(f"Failed to import browser tools: {str(e)}")
+        
         # For GitHub agent (or other agents with non-LLM implementation)
         if "github" in self.agent.name.lower() and "process_request" in tool_funcs:
             try:
@@ -313,15 +332,27 @@ class AgentRunner:
                             ).order_by(AgentMessage.id.desc()).first()
                             
                             if message:
-                                message.tool_output = tool_result
+                                # Make sure tool_output is stored as a string
+                                if isinstance(tool_result, (dict, list)):
+                                    message.tool_output = json.dumps(tool_result)
+                                else:
+                                    message.tool_output = str(tool_result)
                                 db.commit()
                     
                     # Add tool result to messages
-                    messages.append({
-                        "role": "function",
-                        "name": tool_name,
-                        "content": tool_result
-                    })
+                    # Convert tool result to string if it's a dict or list
+                    if isinstance(tool_result, (dict, list)):
+                        messages.append({
+                            "role": "function",
+                            "name": tool_name,
+                            "content": json.dumps(tool_result)
+                        })
+                    else:
+                        messages.append({
+                            "role": "function",
+                            "name": tool_name,
+                            "content": str(tool_result)
+                        })
                 else:
                     # Final response without tool call
                     if self.execution_id:

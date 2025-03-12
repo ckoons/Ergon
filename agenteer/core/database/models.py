@@ -31,6 +31,21 @@ class Agent(Base):
     files = relationship("AgentFile", back_populates="agent", cascade="all, delete-orphan")
     executions = relationship("AgentExecution", back_populates="agent", cascade="all, delete-orphan")
     
+    # Add type property to handle agents without type column in database
+    @property
+    def type(self) -> str:
+        """Get the agent type from name"""
+        # Infer type from name - avoid accessing relationships that might not be loaded
+        name_lower = self.name.lower()
+        if 'mail' in name_lower or 'email' in name_lower:
+            return 'mail'
+        elif 'browser' in name_lower:
+            return 'browser'
+        elif 'github' in name_lower:
+            return 'github'
+        else:
+            return 'standard'
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert agent to dictionary."""
         return {
@@ -41,6 +56,7 @@ class Agent(Base):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "model_name": self.model_name,
             "system_prompt": self.system_prompt,
+            "type": self.type,
             "tools": [tool.to_dict() for tool in self.tools],
             "files": [file.to_dict() for file in self.files],
         }

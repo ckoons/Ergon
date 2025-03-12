@@ -15,6 +15,10 @@ import asyncio
 
 from agenteer.utils.config.settings import settings
 from agenteer.core.agents.mail.providers import get_mail_provider, MailProvider
+# Import for proper typing, avoid circular imports at runtime
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from agenteer.core.agents.mail.imap_provider import ImapSmtpProvider
 
 # Configure logger
 logger = logging.getLogger(__name__)
