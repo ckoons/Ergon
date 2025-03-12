@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///agenteer.db"
     vector_db_path: str = "./vector_store"
     
+    # Authentication settings
+    require_authentication: bool = True  # Default to requiring authentication
+    
     # Application settings
     log_level: LogLevel = LogLevel.INFO
     debug: bool = False

@@ -43,7 +43,12 @@ def main(
     ),
 ):
     """Agenteer CLI: Build and run AI agents with minimal configuration."""
-    pass
+    # Check if authenticated
+    try:
+        from agenteer.utils.config.credentials import credential_manager
+    except ImportError:
+        # Credential manager not available yet
+        pass
 
 
 @app.command("init")
@@ -64,6 +69,10 @@ def init(
             init_db()
             
             console.print("[bold green]✓[/bold green] Database initialized")
+            
+            # Create credential manager directory if it doesn't exist
+            os.makedirs(settings.config_path, exist_ok=True)
+            console.print(f"[bold green]✓[/bold green] Config directory created at {settings.config_path}")
             
             # Check API keys
             if settings.has_openai:
@@ -98,7 +107,11 @@ def ui(
             console.print("[yellow]Database not initialized. Running initialization...[/yellow]")
             init_db()
         
+        # Make sure config directory exists
+        os.makedirs(settings.config_path, exist_ok=True)
+        
         console.print(f"[bold green]Starting Agenteer UI on http://{host}:{port} ...[/bold green]")
+        console.print("[green]Login with your email and password. First-time users will be automatically registered.[/green]")
         
         # Run Streamlit app
         ui_path = str(Path(__file__).parent.parent / "ui" / "app.py")
@@ -644,6 +657,91 @@ def delete_agent(
         raise typer.Exit(1)
 
 
+@app.command("login")
+def login(
+    email: str = typer.Option(None, "--email", "-e", help="Email address for login"),
+    password: str = typer.Option(None, "--password", "-p", help="Password for login (not recommended, use prompt instead)")
+):
+    """Login to Agenteer CLI."""
+    try:
+        from agenteer.utils.config.credentials import credential_manager
+        from agenteer.utils.config.settings import settings
+        
+        # Check if authentication is required
+        if not settings.require_authentication:
+            console.print("[yellow]Authentication is disabled via AGENTEER_AUTHENTICATION=false.[/yellow]")
+            console.print("[green]You are automatically logged in as admin@example.com[/green]")
+            return
+            
+        # Get email if not provided
+        if not email:
+            email = input("Email: ").strip()
+        
+        # Get password if not provided (more secure)
+        if not password:
+            import getpass
+            password = getpass.getpass("Password: ")
+        
+        if not email or not password:
+            console.print("[bold red]Email and password are required.[/bold red]")
+            return
+        
+        if credential_manager.authenticate(email, password):
+            console.print(f"[bold green]Successfully logged in as {email}![/bold green]")
+        else:
+            # Check if credentials file exists
+            if os.path.exists(credential_manager.credentials_file):
+                console.print("[bold red]Invalid credentials.[/bold red]")
+                
+                # Ask if they want to register
+                if typer.confirm("Would you like to register as a new user?"):
+                    register_new_user(email)
+            else:
+                # First time setup
+                console.print("[yellow]No users registered yet. Creating new account.[/yellow]")
+                register_new_user(email)
+                
+    except ImportError:
+        console.print("[bold red]Credential manager not available. Initialize Agenteer first.[/bold red]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[bold red]Error during login: {str(e)}[/bold red]")
+        raise typer.Exit(1)
+
+def register_new_user(email=None):
+    """Helper function to register a new user."""
+    from agenteer.utils.config.credentials import credential_manager
+    import getpass
+    
+    if not email:
+        email = input("Email: ").strip()
+    
+    while True:
+        password = getpass.getpass("Password (minimum 8 characters): ")
+        
+        if not password:
+            console.print("[bold red]Password cannot be empty.[/bold red]")
+            continue
+            
+        if len(password) < 8:
+            console.print("[bold red]Password must be at least 8 characters.[/bold red]")
+            continue
+            
+        confirm = getpass.getpass("Confirm password: ")
+        
+        if password != confirm:
+            console.print("[bold red]Passwords do not match.[/bold red]")
+            continue
+        
+        break
+        
+    if credential_manager.register(email, password):
+        console.print(f"[bold green]Successfully registered and logged in as {email}![/bold green]")
+        return True
+    else:
+        console.print("[bold red]Registration failed. User may already exist.[/bold red]")
+        return False
+
 @app.command("status")
 def status():
     """Check Agenteer status and configuration."""
@@ -664,6 +762,23 @@ def status():
             table.add_row("Database", "✓", settings.database_url)
         else:
             table.add_row("Database", "✗", f"{settings.database_url} (not initialized)")
+        
+        # User authentication
+        try:
+            from agenteer.utils.config.credentials import credential_manager
+            cred_file_exists = os.path.exists(credential_manager.credentials_file)
+            
+            if cred_file_exists:
+                if credential_manager.is_authenticated():
+                    table.add_row("User Auth", "✓", f"Logged in as {credential_manager.get_current_user()}")
+                else:
+                    table.add_row("User Auth", "✓", "User account(s) exist, not logged in")
+            else:
+                table.add_row("User Auth", "✗", "No user accounts configured")
+        except ImportError:
+            table.add_row("User Auth", "✗", "Credential manager not available")
+        except Exception as auth_e:
+            table.add_row("User Auth", "✗", f"Error: {str(auth_e)}")
         
         # API Keys
         if settings.has_openai:

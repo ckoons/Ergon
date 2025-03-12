@@ -123,11 +123,30 @@ Agenteer consists of several core components:
 
 ## Configuration
 
-Agenteer uses a hierarchical configuration system:
+Agenteer uses a hierarchical configuration system with environment variables loaded from multiple files in the following priority order:
 
-- `.env`: Base configuration shared by all users
-- `.env.owner`: Personal settings (API keys, model preferences)
-- `.env.local`: Local development settings
+1. `.env.owner`: Highest priority, personal settings not checked into version control
+2. `.env.local`: Middle priority, machine-specific settings not checked into version control 
+3. `.env`: Lowest priority, base configuration shared by all users
+
+Values in earlier files override those in later files. All files are loaded, creating a cascading configuration system.
+
+### Authentication Configuration
+
+Agenteer includes a configurable authentication system controlled via the `AGENTEER_AUTHENTICATION` environment variable:
+
+- `AGENTEER_AUTHENTICATION=true` (default): User authentication is required
+- `AGENTEER_AUTHENTICATION=false`: Authentication is bypassed (useful for testing)
+
+You can set this variable in any of the environment files or on the command line:
+
+```bash
+# Run with authentication disabled
+AGENTEER_AUTHENTICATION=false agenteer ui
+
+# Run tests without authentication prompts
+AGENTEER_AUTHENTICATION=false pytest tests/
+```
 
 Example configuration:
 
@@ -141,6 +160,9 @@ OLLAMA_BASE_URL="http://localhost:11434"
 DEFAULT_MODEL="claude-3-7-sonnet-20250219"
 USE_LOCAL_MODELS=false
 EMBEDDING_MODEL="sentence-transformers/all-MiniLM-L6-v2"
+
+# Authentication settings
+AGENTEER_AUTHENTICATION=true  # Set to false to disable authentication
 
 # Application settings
 LOG_LEVEL="INFO"

@@ -28,7 +28,11 @@ debug("Starting Agenteer UI application")
 def initialize_session_state():
     """Initialize all required session state variables with defaults"""
     if "page" not in st.session_state:
-        st.session_state.page = "Home"
+        st.session_state.page = "Login"  # Start with login page
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+    if "username" not in st.session_state:
+        st.session_state.username = None
     if "selected_agent_id" not in st.session_state:
         st.session_state.selected_agent_id = None
     if "chat_history" not in st.session_state:
@@ -299,6 +303,16 @@ st.sidebar.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Add logged in user info and logout button if authenticated
+if st.session_state.authenticated:
+    st.sidebar.markdown(f"**Logged in as:** {st.session_state.username}")
+    if st.sidebar.button("Logout", key="logout_btn"):
+        st.session_state.authenticated = False
+        st.session_state.username = None
+        credential_manager.logout()
+        navigate_to("Login")
+        st.rerun()
+
 # Get counts for UI elements but don't show navigation control
 with get_db_session() as db:
     agent_count = db.query(Agent).count()
@@ -319,77 +333,79 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Navigation dropdown in sidebar with clickable links and descriptions
-with st.sidebar.expander("Navigation"):
-    # Agenteer Main page section
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        st.button("▶", key="home_btn", help="Go to Main Page", type="primary")  # Blue button
-    with col2:
-        st.markdown("**Agenteer**")
-        st.markdown("<span style='color:#FFFFFF; font-size:0.9em; font-weight:500;'>Main Page</span>", unsafe_allow_html=True)
-    if st.session_state.get("home_btn"):
-        navigate_to("Home")
+# Only show navigation if authenticated
+if st.session_state.authenticated:
+    # Navigation dropdown in sidebar with clickable links and descriptions
+    with st.sidebar.expander("Navigation"):
+        # Agenteer Main page section
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            st.button("▶", key="home_btn", help="Go to Main Page", type="primary")  # Blue button
+        with col2:
+            st.markdown("**Agenteer**")
+            st.markdown("<span style='color:#FFFFFF; font-size:0.9em; font-weight:500;'>Main Page</span>", unsafe_allow_html=True)
+        if st.session_state.get("home_btn"):
+            navigate_to("Home")
     
-    st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
+        st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
+        
+        # Create Agent section
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            st.button("▶", key="create_agent_btn", help="Go to Create Agent", type="primary")  # Blue button
+        with col2:
+            st.markdown("**Create Agent**")
+            st.markdown("<span style='color:#FFFFFF; font-size:0.9em; font-weight:500;'>Create a new AI agent from scratch</span>", unsafe_allow_html=True)
+        if st.session_state.get("create_agent_btn"):
+            navigate_to("Create Agent")
     
-    # Create Agent section
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        st.button("▶", key="create_agent_btn", help="Go to Create Agent", type="primary")  # Blue button
-    with col2:
-        st.markdown("**Create Agent**")
-        st.markdown("<span style='color:#FFFFFF; font-size:0.9em; font-weight:500;'>Create a new AI agent from scratch</span>", unsafe_allow_html=True)
-    if st.session_state.get("create_agent_btn"):
-        navigate_to("Create Agent")
+        st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
+        
+        # My Agents section
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            st.button("▶", key="my_agents_btn", help="Go to My Agents", type="primary")  # Blue button
+        with col2:
+            st.markdown("**Existing Agents**")
+            st.markdown("<span style='color:#FFFFFF; font-size:0.9em; font-weight:500;'>View and interact with your existing agents</span>", unsafe_allow_html=True)
+        if st.session_state.get("my_agents_btn"):
+            navigate_to("My Agents")
+        
+        st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
+        
+        # Documentation section
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            st.button("▶", key="documentation_btn", help="Go to Documentation", type="primary")  # Blue button
+        with col2:
+            st.markdown("**Documentation**")
+            st.markdown("<span style='color:#FFFFFF; font-size:0.9em; font-weight:500;'>Manage documentation for agent creation</span>", unsafe_allow_html=True)
+        if st.session_state.get("documentation_btn"):
+            navigate_to("Documentation")
     
-    st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
+        st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
+        
+        # Web Search section
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            st.button("▶", key="web_search_btn", help="Go to Web Search", type="primary")  # Blue button
+        with col2:
+            st.markdown("**Web Search**")
+            st.markdown("<span style='color:#FFFFFF; font-size:0.9em; font-weight:500;'>Crawl and index web documentation</span>", unsafe_allow_html=True)
+        if st.session_state.get("web_search_btn"):
+            navigate_to("Web Search")
+        
+        st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
     
-    # My Agents section
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        st.button("▶", key="my_agents_btn", help="Go to My Agents", type="primary")  # Blue button
-    with col2:
-        st.markdown("**Existing Agents**")
-        st.markdown("<span style='color:#FFFFFF; font-size:0.9em; font-weight:500;'>View and interact with your existing agents</span>", unsafe_allow_html=True)
-    if st.session_state.get("my_agents_btn"):
-        navigate_to("My Agents")
-    
-    st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
-    
-    # Documentation section
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        st.button("▶", key="documentation_btn", help="Go to Documentation", type="primary")  # Blue button
-    with col2:
-        st.markdown("**Documentation**")
-        st.markdown("<span style='color:#FFFFFF; font-size:0.9em; font-weight:500;'>Manage documentation for agent creation</span>", unsafe_allow_html=True)
-    if st.session_state.get("documentation_btn"):
-        navigate_to("Documentation")
-    
-    st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
-    
-    # Web Search section
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        st.button("▶", key="web_search_btn", help="Go to Web Search", type="primary")  # Blue button
-    with col2:
-        st.markdown("**Web Search**")
-        st.markdown("<span style='color:#FFFFFF; font-size:0.9em; font-weight:500;'>Crawl and index web documentation</span>", unsafe_allow_html=True)
-    if st.session_state.get("web_search_btn"):
-        navigate_to("Web Search")
-    
-    st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
-    
-    # Settings section
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        st.button("▶", key="settings_btn", help="Go to Settings", type="primary")  # Blue button
-    with col2:
-        st.markdown("**Settings**")
-        st.markdown("<span style='color:#FFFFFF; font-size:0.9em; font-weight:500;'>Configure Agenteer settings</span>", unsafe_allow_html=True)
-    if st.session_state.get("settings_btn"):
-        navigate_to("Settings")
+        # Settings section
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            st.button("▶", key="settings_btn", help="Go to Settings", type="primary")  # Blue button
+        with col2:
+            st.markdown("**Settings**")
+            st.markdown("<span style='color:#FFFFFF; font-size:0.9em; font-weight:500;'>Configure Agenteer settings</span>", unsafe_allow_html=True)
+        if st.session_state.get("settings_btn"):
+            navigate_to("Settings")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### System Status")
@@ -460,6 +476,14 @@ else:
 # Render the appropriate page content based on session state
 debug(f"Rendering page: {st.session_state.page}")
 
+# Import credential manager
+try:
+    from agenteer.utils.config.credentials import credential_manager
+    debug("Imported credential manager")
+except Exception as e:
+    debug(f"Error importing credential manager: {str(e)}")
+    debug(traceback.format_exc())
+
 # Check if there's a pending navigation action
 if st.session_state.navigation_action:
     debug(f"Executing navigation action: {st.session_state.navigation_action}")
@@ -476,8 +500,76 @@ if st.session_state.navigation_action:
     elif action == "cancel_db_reset":
         debug("Database reset canceled")
 
+# Check if authentication is required via environment variable
+if settings.require_authentication:
+    # Authentication check - redirect to login if not authenticated
+    if not st.session_state.authenticated and st.session_state.page != "Login":
+        debug("User not authenticated, redirecting to login")
+        st.session_state.page = "Login"
+        st.rerun()
+else:
+    # Skip authentication if not required
+    if not st.session_state.authenticated:
+        debug("Authentication disabled via environment variable, auto-authenticating")
+        st.session_state.authenticated = True
+        st.session_state.username = "admin@example.com"
+        if st.session_state.page == "Login":
+            st.session_state.page = "Home"
+            st.rerun()
+
+# Login page
+if st.session_state.page == "Login":
+    st.title("Login to Agenteer")
+    
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        with st.form("login_form"):
+            st.subheader("Login")
+            email = st.text_input("Email")
+            password = st.text_input("Password", type="password")
+            login_button = st.form_submit_button("Login")
+            
+            if login_button:
+                if email and password:
+                    # Authenticate user
+                    if credential_manager.authenticate(email, password):
+                        st.session_state.authenticated = True
+                        st.session_state.username = email
+                        st.session_state.page = "Home"
+                        st.rerun()
+                    else:
+                        st.error("Invalid credentials")
+                else:
+                    st.error("Please enter both email and password")
+    
+    with col2:
+        with st.form("register_form"):
+            st.subheader("Register")
+            new_email = st.text_input("Email")
+            new_password = st.text_input("Password", type="password")
+            confirm_password = st.text_input("Confirm Password", type="password")
+            register_button = st.form_submit_button("Register")
+            
+            if register_button:
+                if not new_email:
+                    st.error("Please enter an email address")
+                elif not new_password:
+                    st.error("Password cannot be empty")
+                elif len(new_password) < 8:
+                    st.error("Password must be at least 8 characters")
+                elif new_password != confirm_password:
+                    st.error("Passwords do not match")
+                else:
+                    # Register new user
+                    if credential_manager.register(new_email, new_password):
+                        st.success("Registration successful! You can now log in.")
+                        st.session_state.page = "Login"
+                        st.rerun()
+                    else:
+                        st.error("User already exists or registration failed")
+
 # Home page
-if st.session_state.page == "Home":
+elif st.session_state.page == "Home":
     # Larger title without subtitle
     st.markdown("""
     <div style='margin-bottom: 25px;'>

@@ -60,8 +60,13 @@ The Agenteer UI is built with Streamlit and organized into several pages:
 ## Common Commands
 
 ```bash
-# Start the UI (standard)
+# Start the UI (standard - with authentication)
 agenteer ui
+
+# Start the UI without authentication
+AGENTEER_AUTHENTICATION=false agenteer ui
+# Or use the convenience script
+./run_ui_no_auth.sh
 
 # Start the UI with suppressed PyTorch warnings
 ./run_ui.sh
@@ -198,6 +203,43 @@ docker run --platform linux/arm64 -v agenteer-data:/data -p 8501:8501 agenteer u
 - Preload only documentation relevant to your current project
 - Run preloading during off-hours for large documentation sets
 - Verify loaded documentation by checking status
+
+## Environment Variables
+
+Agenteer uses a hierarchical configuration system with environment variables loaded from multiple files in priority order:
+
+1. `.env.owner`: Highest priority, personal settings not checked into version control
+2. `.env.local`: Middle priority, machine-specific settings not checked into version control 
+3. `.env`: Lowest priority, base configuration shared by all users
+
+Values in earlier files override those in later files. All files are loaded, creating a cascading configuration system.
+
+### Key Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OPENAI_API_KEY` | OpenAI API key for OpenAI models | None |
+| `ANTHROPIC_API_KEY` | Anthropic API key for Claude models | None |
+| `OLLAMA_BASE_URL` | Base URL for local Ollama instance | http://localhost:11434 |
+| `DEFAULT_MODEL` | Default model to use when not specified | gpt-4o-mini |
+| `AGENTEER_AUTHENTICATION` | Whether to require user authentication | true |
+| `BROWSER_HEADLESS` | Run browser in headless mode | true |
+| `LOG_LEVEL` | Logging level (DEBUG, INFO, etc.) | INFO |
+
+### Authentication Control
+
+For testing and development, you can disable authentication:
+
+```bash
+# In .env file
+AGENTEER_AUTHENTICATION=false
+
+# Or on command line for a specific command
+AGENTEER_AUTHENTICATION=false agenteer ui
+
+# For testing
+AGENTEER_AUTHENTICATION=false pytest tests/
+```
 
 ## Troubleshooting
 
