@@ -502,6 +502,11 @@ The memory integration process involved several steps and taught us important le
    - Debug and fix the interactive mode in the CLI
    - Implement proper error handling for tool execution
    - Add memory visualization in the CLI interface
+   
+5. **Dependency Cleanup**
+   - Address deprecation warnings from numpy and pydantic
+   - Update dependencies to newer versions
+   - Fix SwigPyObject module warnings from FAISS
 
 ### Reusable Workflow System Plan
 
