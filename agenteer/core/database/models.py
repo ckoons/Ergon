@@ -43,6 +43,8 @@ class Agent(Base):
             return 'browser'
         elif 'github' in name_lower:
             return 'github'
+        elif 'nexus' in name_lower:
+            return 'nexus'
         else:
             return 'standard'
     

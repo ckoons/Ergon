@@ -18,6 +18,14 @@ from agenteer.core.database.models import Agent, AgentExecution, AgentMessage, A
 from agenteer.core.llm.client import LLMClient
 from agenteer.utils.config.settings import settings
 
+# Import the memory service
+try:
+    from agenteer.core.memory.service import MemoryService
+    HAS_MEMORY = True
+except ImportError:
+    HAS_MEMORY = False
+    logger.warning("Memory service not available, running without memory capabilities")
+
 # Configure logger
 logger = logging.getLogger(__name__)
 logger.setLevel(getattr(logging, settings.log_level.value))
@@ -187,6 +195,14 @@ class AgentRunner:
         Returns:
             Agent's response
         """
+        # Check for greeting or memory-related queries for Nexus agents - use simple completion
+        if (hasattr(self.agent, 'type') and 
+            (self.agent.type == "nexus" or "nexus" in self.agent.name.lower()) and 
+            (any(greeting in input_text.lower() for greeting in ["hello", "hi", "hey", "greetings", "who are you"]) or
+             any(memory_term in input_text.lower() for memory_term in ["remember", "memory", "recall", "forgot", "know about me", "know about us"]))):
+            logger.info("Nexus agent greeting or memory query detected, using simple completion")
+            return await self._run_simple(input_text)
+            
         # Check if agent has tools
         with get_db_session() as db:
             tools = db.query(AgentTool).filter(AgentTool.agent_id == self.agent.id).all()
@@ -206,8 +222,35 @@ class AgentRunner:
             {"role": "user", "content": input_text}
         ]
         
+        # Check if this is a Nexus agent and enhance with memory
+        if HAS_MEMORY and (self.agent.type == "nexus" or "nexus" in self.agent.name.lower()):
+            try:
+                memory_service = MemoryService(self.agent.id)
+                memory_context = await memory_service.get_relevant_context(input_text)
+                
+                # Add memory context to system prompt
+                if memory_context:
+                    messages[0]["content"] += f"\n\n{memory_context}"
+                else:
+                    # Add a reminder about memory capabilities even if no relevant memories found
+                    messages[0]["content"] += "\n\nYou are a memory-enabled assistant capable of remembering past interactions."
+            except Exception as e:
+                logger.error(f"Error retrieving memories: {str(e)}")
+        
         # Get response from LLM
         response = await self.llm_client.acomplete(messages)
+        
+        # Store interaction in memory if this is a Nexus agent
+        if HAS_MEMORY and (self.agent.type == "nexus" or "nexus" in self.agent.name.lower()):
+            try:
+                memory_service = MemoryService(self.agent.id)
+                conversation = [
+                    {"role": "user", "content": input_text},
+                    {"role": "assistant", "content": response}
+                ]
+                await memory_service.add(conversation)
+            except Exception as e:
+                logger.error(f"Error storing memory: {str(e)}")
         
         # Record in database if execution_id provided
         if self.execution_id:
@@ -325,6 +368,21 @@ class AgentRunner:
             {"role": "user", "content": input_text}
         ]
         
+        # Check if this is a Nexus agent and enhance with memory
+        if HAS_MEMORY and (self.agent.type == "nexus" or "nexus" in self.agent.name.lower()):
+            try:
+                memory_service = MemoryService(self.agent.id)
+                memory_context = await memory_service.get_relevant_context(input_text)
+                
+                # Add memory context to system prompt
+                if memory_context:
+                    messages[0]["content"] += f"\n\n{memory_context}"
+                else:
+                    # Add a reminder about memory capabilities even if no relevant memories found
+                    messages[0]["content"] += "\n\nYou are a memory-enabled assistant capable of remembering past interactions."
+            except Exception as e:
+                logger.error(f"Error retrieving memories: {str(e)}")
+        
         # Simulate a conversation with tools
         for _ in range(5):  # Maximum 5 tool calls per conversation
             try:
@@ -405,6 +463,19 @@ class AgentRunner:
                             db.add(message)
                             db.commit()
                     
+                    # Store interaction in memory if this is a Nexus agent
+                    if HAS_MEMORY and (self.agent.type == "nexus" or "nexus" in self.agent.name.lower()):
+                        try:
+                            memory_service = MemoryService(self.agent.id)
+                            conversation = [
+                                {"role": "user", "content": input_text},
+                                {"role": "assistant", "content": response["content"]}
+                            ]
+                            await memory_service.add(conversation)
+                            logger.info(f"Stored interaction in memory for agent {self.agent.id}")
+                        except Exception as e:
+                            logger.error(f"Error storing memory: {str(e)}")
+                    
                     return response["content"]
             
             except Exception as e:
@@ -415,7 +486,23 @@ class AgentRunner:
         logger.warning(f"Maximum tool calls reached. Tool calls made: {len(messages) - 2}")
         for i, msg in enumerate(messages[2:]):
             logger.warning(f"Tool call {i+1}: {json.dumps(msg)}")
-        return "I've made too many tool calls without reaching a conclusion. Please try a more specific query."
+        
+        # Even for error cases, store in memory if this is a Nexus agent
+        error_message = "I've made too many tool calls without reaching a conclusion. Please try a more specific query."
+        
+        if HAS_MEMORY and (self.agent.type == "nexus" or "nexus" in self.agent.name.lower()):
+            try:
+                memory_service = MemoryService(self.agent.id)
+                conversation = [
+                    {"role": "user", "content": input_text},
+                    {"role": "assistant", "content": error_message}
+                ]
+                await memory_service.add(conversation)
+                logger.info(f"Stored error interaction in memory for agent {self.agent.id}")
+            except Exception as e:
+                logger.error(f"Error storing memory: {str(e)}")
+        
+        return error_message
     
     async def _mock_tool_calling(
         self, 
@@ -539,6 +626,13 @@ If you don't need to use a tool, respond with your regular text answer."""
         
         # If no tool needed, get regular completion
         try:
+            # For nexus agents, always avoid tools on initial greeting
+            if (self.agent.type == "nexus" or "nexus" in self.agent.name.lower()) and any(greeting in input_text.lower() for greeting in ["hello", "hi", "hey", "greetings"]):
+                logger.info("Nexus agent greeting detected, bypassing tools")
+                response = await self.llm_client.acomplete(messages)
+                return {"content": response}
+            
+            # Regular tool completion
             response = await self.llm_client.acomplete(messages)
             return {"content": response}
         except Exception as e:
@@ -582,6 +676,82 @@ If you don't need to use a tool, respond with your regular text answer."""
                     
                     logger.info(f"Loaded browser tools: {list(tools.keys())}")
                     return tools
+                
+                # For Nexus/memory-enabled agents, load the memory tools
+                elif agent_type == "nexus":
+                    logger.info("Loading memory tools for Nexus agent")
+                    
+                    # Import memory service if available
+                    try:
+                        from agenteer.core.memory.service import MemoryService
+                        
+                        # Create memory service
+                        memory_service = MemoryService(self.agent.id)
+                        agent_id = self.agent.id  # For closures
+                        
+                        # Define tool functions
+                        async def store_memory(key: str, value: str) -> str:
+                            """Store a memory for future reference."""
+                            try:
+                                message = {"role": "system", "content": value}
+                                success = await memory_service.add([message], user_id=key)
+                                
+                                if success:
+                                    return f"Successfully stored memory with key: {key}"
+                                else:
+                                    return f"Failed to store memory with key: {key}"
+                            except Exception as e:
+                                logger.error(f"Error in store_memory: {str(e)}")
+                                return f"Error storing memory: {str(e)}"
+                        
+                        async def retrieve_memory(query: str, limit: int = 3) -> str:
+                            """Search memories for relevant information."""
+                            try:
+                                memory_results = await memory_service.search(query, limit=limit)
+                                
+                                if not memory_results or not memory_results.get("results"):
+                                    return "No relevant memories found."
+                                
+                                response = "Found the following relevant memories:\n\n"
+                                for i, memory in enumerate(memory_results["results"]):
+                                    response += f"{i+1}. {memory['memory']}\n\n"
+                                
+                                return response
+                            except Exception as e:
+                                logger.error(f"Error in retrieve_memory: {str(e)}")
+                                return f"Error retrieving memories: {str(e)}"
+                        
+                        async def remember_interaction(user_message: str, agent_response: str) -> str:
+                            """Store an interaction in memory."""
+                            try:
+                                messages = [
+                                    {"role": "user", "content": user_message},
+                                    {"role": "assistant", "content": agent_response}
+                                ]
+                                from datetime import datetime
+                                timestamp = datetime.now().isoformat()
+                                success = await memory_service.add(messages, user_id=f"interaction_{timestamp}")
+                                
+                                if success:
+                                    return "Interaction stored in memory successfully."
+                                else:
+                                    return "Failed to store interaction in memory."
+                            except Exception as e:
+                                logger.error(f"Error in remember_interaction: {str(e)}")
+                                return f"Error storing interaction: {str(e)}"
+                        
+                        # Add memory tools
+                        tools["store_memory"] = store_memory
+                        tools["retrieve_memory"] = retrieve_memory
+                        tools["remember_interaction"] = remember_interaction
+                        
+                        logger.info(f"Loaded memory tools: {list(tools.keys())}")
+                    except ImportError as e:
+                        logger.error(f"Failed to load memory service: {str(e)}")
+                    except Exception as e:
+                        logger.error(f"Error initializing memory tools: {str(e)}")
+                    finally:
+                        return tools
             
             # If not a special agent type or special tools failed to load,
             # fall back to loading tools from the agent_tools.py file

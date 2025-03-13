@@ -17,6 +17,9 @@ from pathlib import Path
 from agenteer.utils.config.settings import settings
 from agenteer.core.database.engine import init_db
 
+# Import commands
+from agenteer.cli.commands.nexus import nexus_command
+
 # Initialize console for rich output
 console = Console()
 
@@ -156,7 +159,7 @@ def create(
             raise typer.Exit(1)
         
         # Validate agent type
-        valid_types = ["standard", "github", "mail", "browser"]
+        valid_types = ["standard", "github", "mail", "browser", "nexus"]
         if agent_type not in valid_types:
             console.print(f"[bold red]Invalid agent type: {agent_type}. Valid types: {', '.join(valid_types)}[/bold red]")
             raise typer.Exit(1)
@@ -455,6 +458,17 @@ def run_agent(
     except Exception as e:
         console.print(f"[bold red]Error running agent: {str(e)}[/bold red]")
         raise typer.Exit(1)
+
+
+@app.command("nexus")
+def nexus(
+    agent: str = typer.Argument(..., help="Name or ID of the memory-enabled agent to chat with"),
+    input: str = typer.Option(None, "--input", "-i", help="Input to send to the agent"),
+    interactive: bool = typer.Option(False, "--interactive", help="Run in interactive mode"),
+    disable_memory: bool = typer.Option(False, "--no-memory", help="Disable memory features for simpler operation"),
+):
+    """Chat with a memory-enabled Nexus agent."""
+    return nexus_command(agent, input, interactive, disable_memory)
 
 
 @app.command("preload-docs")

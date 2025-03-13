@@ -194,7 +194,7 @@ If you're unsure about something, acknowledge that limitation rather than making
         docs_text = ""
         if relevant_docs:
             docs_text = "\n\n".join([
-                f"--- Document: {doc['metadata']['title']} ---\n{doc['content'][:500]}..."
+                f"--- Document: {doc['metadata'].get('title', 'Untitled Document')} ---\n{doc['content'][:500]}..."
                 for doc in relevant_docs
             ])
         
@@ -517,6 +517,46 @@ def generate_agent(
             "tools": browser_data["tools"],
             "files": [] # No files for browser agent
         }
+    elif agent_type == "nexus":
+        # Dynamic import to avoid circular imports
+        try:
+            from agenteer.core.agents.generators.nexus.generator import generate_nexus_agent
+            
+            # Generate memory-enabled Nexus agent
+            nexus_agent = generate_nexus_agent(name, description, model_name or settings.default_model)
+            
+            # Convert to the expected format
+            tools_data = []
+            with get_db_session() as db:
+                tools = db.query(AgentTool).filter(AgentTool.agent_id == nexus_agent.id).all()
+                for tool in tools:
+                    tools_data.append({
+                        "name": tool.name,
+                        "description": tool.description,
+                        "function_def": tool.function_def
+                    })
+            
+            files_data = []
+            with get_db_session() as db:
+                files = db.query(AgentFile).filter(AgentFile.agent_id == nexus_agent.id).all()
+                for file in files:
+                    files_data.append({
+                        "filename": file.filename,
+                        "content": file.content,
+                        "file_type": file.file_type
+                    })
+            
+            return {
+                "name": nexus_agent.name,
+                "description": nexus_agent.description,
+                "system_prompt": nexus_agent.system_prompt,
+                "tools": tools_data,
+                "files": files_data
+            }
+        except ImportError as e:
+            logger.error(f"Error importing nexus generator: {str(e)}")
+            # Fall back to standard agent if nexus generator not available
+            return asyncio.run(generator.generate(name, description, tools))
     else:
         return asyncio.run(generator.generate(name, description, tools))
 

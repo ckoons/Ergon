@@ -86,11 +86,20 @@ agenteer create -n "MailAgent" -d "Description" -t mail
 # Create a Browser agent
 agenteer create -n "BrowserAgent" -d "Web browsing agent" -t browser
 
+# Create a Nexus memory-enabled agent
+agenteer create -n "MemoryAgent" -d "Agent with long-term memory" -t nexus
+
 # List all agents
 agenteer list
 
 # Run an agent
 agenteer run AGENT_ID -i "Your input here"
+
+# Run a memory-enabled Nexus agent
+agenteer nexus AGENT_ID -i "Your input here"
+
+# Chat with a Nexus agent in interactive mode
+agenteer nexus "MemoryAgent" --interactive
 
 # Preload documentation
 agenteer preload-docs --source anthropic
@@ -392,6 +401,107 @@ When upgrading libraries or making significant changes to Agenteer, use this che
    - Add automated test suite for CI/CD
 
 ## Latest Development Updates (March 13, 2025)
+
+### Memory-Enabled Agents with mem0 (March 13, 2025)
+
+**Project Goal**: Integrate memory capabilities using the mem0 library to enable Agenteer agents with long-term memory.
+
+#### Implementation Summary
+
+We've successfully integrated mem0 memory functionality into Agenteer with these components:
+
+1. **Core Memory Service** (`agenteer/core/memory/service.py`)
+   - Provides memory storage and retrieval capabilities
+   - Works with both mem0 and a local fallback when mem0 is not available
+   - Enables semantic search for relevant memories
+
+2. **Nexus Agent Generator** (`agenteer/core/agents/generators/nexus/generator.py`)
+   - Creates specialized memory-enabled agents
+   - Adds memory-specific tools to agents
+   - Maintains conversational context across sessions
+
+3. **Runner Integration** (`agenteer/core/agents/runner.py`)
+   - Enhances agent prompts with relevant memories
+   - Automatically stores interactions in memory
+   - Handles natural greetings without tool overhead
+   - Optimized for memory-enabled agents
+
+4. **CLI Command** (`agenteer/cli/commands/nexus.py`)
+   - Dedicated `nexus` command for interacting with memory-enabled agents
+   - Supports single-response mode with memory integration
+   - Option to disable memory with `--no-memory` flag
+
+#### Current Limitations and Fixes
+
+1. **Interactive Mode**: The interactive CLI mode has some issues with tool execution and error handling. We need to investigate this further to provide a smooth interactive experience.
+
+2. **mem0 Integration**: While the mem0 library provides extensive memory capabilities, we've implemented a simpler in-memory fallback solution for now to ensure compatibility across different environments. Full mem0 integration requires more testing.
+
+3. **Tool Execution**: Memory-enabled agents sometimes get stuck in tool execution loops. We've implemented special handling for typical conversational patterns (greetings, memory queries) to bypass tool execution for these cases.
+
+4. **Agent Generation Fix**: We've fixed a bug in the generator where it would fail when document metadata didn't include a 'title' field. The agent generator now includes a fallback for missing metadata titles.
+
+#### Installation
+
+To use memory capabilities with mem0, install the mem0 library:
+
+```bash
+pip install mem0ai==0.1.65
+```
+
+#### Usage Examples
+
+```bash
+# Create a memory-enabled Nexus agent
+agenteer create -n "MemoryAgent" -d "An agent with memory capabilities" -t nexus
+
+# Chat with a Nexus agent (memory enabled by default)
+agenteer nexus "MemoryAgent" -i "Hello, who are you?"
+
+# Run a Nexus agent with memory disabled
+agenteer nexus "MemoryAgent" -i "Tell me about yourself" --no-memory
+```
+
+#### Implementation Process and Learnings
+
+The memory integration process involved several steps and taught us important lessons:
+
+1. **Architecture Choices**
+   - We chose a hybrid approach with both mem0 and a fallback implementation
+   - The MemoryService provides a consistent interface regardless of backend
+   - Memory enhancements are applied at the prompt level for simplicity
+
+2. **Tool Management**
+   - Memory-related tools needed special handling in the runner
+   - We found that bypassing tools for conversational patterns works better
+   - The runner detects agent type and conversation context to determine when to use memory features
+
+3. **In-Memory Storage**
+   - The fallback implementation stores memories in a simple dictionary
+   - This provides basic functionality without external dependencies
+   - While not as powerful as vector search, it demonstrates the concept effectively
+
+#### Next Steps
+
+1. **UI Integration**
+   - Add memory visualization in Streamlit UI
+   - Create memory management interface
+   - Implement memory-based recommendations
+
+2. **Enhanced Memory Features**
+   - Add memory categorization
+   - Implement memory pruning/cleanup
+   - Support multi-user memory contexts
+
+3. **Testing**
+   - Create comprehensive memory service tests
+   - Test with different vector stores
+   - Benchmark memory retrieval performance
+
+4. **Interactive Mode Fixes**
+   - Debug and fix the interactive mode in the CLI
+   - Implement proper error handling for tool execution
+   - Add memory visualization in the CLI interface
 
 ### Reusable Workflow System Plan
 
