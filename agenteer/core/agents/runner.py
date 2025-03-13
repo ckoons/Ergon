@@ -7,6 +7,7 @@ import sys
 import json
 import importlib.util
 import tempfile
+import re
 from typing import Dict, Any, List, Optional, Union, Tuple
 from datetime import datetime
 import logging
@@ -253,6 +254,45 @@ class AgentRunner:
             except ImportError as e:
                 logger.error(f"Failed to import browser tools: {str(e)}")
         
+        # Special handling for browser agents with direct workflow
+        if self.agent.type == "browser" and "go to" in input_text.lower() and any(x in input_text.lower() for x in ["title", "text", "content"]):
+            try:
+                # Extract URL from input
+                url_pattern = r"go to\s+([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)"
+                url_match = re.search(url_pattern, input_text, re.IGNORECASE)
+                
+                if url_match and "browse_navigate" in tool_funcs and "browse_get_text" in tool_funcs:
+                    url = url_match.group(1)
+                    if not url.startswith("http"):
+                        url = "https://" + url
+                    
+                    # First, navigate to the URL
+                    logger.info(f"Direct browser workflow: navigating to {url}")
+                    navigate_result = await tool_funcs["browse_navigate"](url=url)
+                    logger.info(f"Navigation result: {navigate_result}")
+                    
+                    # Then get the page text
+                    logger.info("Direct browser workflow: getting page text")
+                    text_result = await tool_funcs["browse_get_text"]()
+                    logger.info(f"Got page text (first 100 chars): {text_result[:100] if isinstance(text_result, str) else 'Not a string'}")
+                    
+                    # Check if we need the title specifically
+                    if "title" in input_text.lower() and "browse_get_html" in tool_funcs:
+                        # Get HTML to extract title
+                        html_result = await tool_funcs["browse_get_html"]()
+                        title_pattern = r"<title>(.*?)</title>"
+                        title_match = re.search(title_pattern, html_result if isinstance(html_result, str) else "")
+                        if title_match:
+                            title = title_match.group(1)
+                            return f"The title of the page at {url} is: {title}"
+                        else:
+                            return f"I visited {url} but couldn't find a title tag. Here's some text content: {text_result[:200] if isinstance(text_result, str) else 'Not available'}"
+                    else:
+                        return f"I visited {url}. Here's the text content: {text_result[:500] if isinstance(text_result, str) else 'Not available'}"
+            except Exception as e:
+                logger.error(f"Error in direct browser workflow: {str(e)}")
+                # Continue with standard workflow if direct approach fails
+        
         # For GitHub agent (or other agents with non-LLM implementation)
         if "github" in self.agent.name.lower() and "process_request" in tool_funcs:
             try:
@@ -372,6 +412,9 @@ class AgentRunner:
                 return f"Error executing agent: {str(e)}"
         
         # If we reach here, we've hit the maximum number of tool calls
+        logger.warning(f"Maximum tool calls reached. Tool calls made: {len(messages) - 2}")
+        for i, msg in enumerate(messages[2:]):
+            logger.warning(f"Tool call {i+1}: {json.dumps(msg)}")
         return "I've made too many tool calls without reaching a conclusion. Please try a more specific query."
     
     async def _mock_tool_calling(
@@ -426,6 +469,40 @@ If you don't need to use a tool, respond with your regular text answer."""
                         }
                     }
                 # Add more specialized GitHub tool handlers here
+                
+        # Check if we're dealing with a Browser agent request
+        elif any(tool["function"]["name"].startswith("browse_") for tool in tool_definitions):
+            # Special handling for browser tools
+            for tool in tool_definitions:
+                tool_name = tool["function"]["name"]
+                
+                # Handle browse_navigate for URL navigation
+                if tool_name == "browse_navigate" and "go to" in user_input.lower():
+                    # Extract URL from input
+                    url_pattern = r"go to\s+([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)"
+                    url_match = re.search(url_pattern, user_input, re.IGNORECASE)
+                    
+                    if url_match:
+                        url = url_match.group(1)
+                        if not url.startswith("http"):
+                            url = "https://" + url
+                        
+                        logger.info(f"Extracted URL for navigation: {url}")
+                        return {
+                            "function_call": {
+                                "name": tool_name,
+                                "arguments": json.dumps({"url": url})
+                            }
+                        }
+                
+                # Handle get_text after navigation
+                if tool_name == "browse_get_text" and any(x in user_input.lower() for x in ["content", "text", "title"]):
+                    return {
+                        "function_call": {
+                            "name": tool_name,
+                            "arguments": json.dumps({})
+                        }
+                    }
         
         # Generic approach for other tools
         for tool in tool_definitions:
@@ -479,6 +556,36 @@ If you don't need to use a tool, respond with your regular text answer."""
         tools = {}
         
         try:
+            # Load special tools based on agent type
+            agent_type = self.agent.type if hasattr(self.agent, 'type') else None
+            if agent_type:
+                # Load browser tools if this is a browser agent
+                if agent_type == "browser":
+                    logger.info("Loading browser tools for browser agent")
+                    from agenteer.core.agents.browser.handler import BrowserToolHandler
+                    from agenteer.core.agents.browser.tools import BROWSER_TOOLS
+                    
+                    # Initialize browser tool handler
+                    browser_handler = BrowserToolHandler()
+                    
+                    # Create async wrapper function for each browser tool
+                    for tool in BROWSER_TOOLS:
+                        tool_name = tool["name"]
+                        
+                        # Create a closure to capture the tool name
+                        async def browser_tool_wrapper(tool_name=tool_name, **kwargs):
+                            logger.info(f"Executing browser tool: {tool_name} with args: {kwargs}")
+                            return await browser_handler.execute_tool(tool_name, kwargs)
+                        
+                        # Add wrapper function to tools with the correct name
+                        tools[tool_name] = browser_tool_wrapper
+                    
+                    logger.info(f"Loaded browser tools: {list(tools.keys())}")
+                    return tools
+            
+            # If not a special agent type or special tools failed to load,
+            # fall back to loading tools from the agent_tools.py file
+            
             # Check if agent_tools.py exists
             tools_path = os.path.join(self.working_dir, "agent_tools.py")
             if not os.path.exists(tools_path):
