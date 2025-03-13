@@ -270,6 +270,70 @@ If you see `Bind for 0.0.0.0:8501 failed: port is already allocated`:
 - Run `docker ps` to find and stop the container
 - Or use a different port: `-p 8502:8501`
 
+## Update Verification Checklist
+
+When upgrading libraries or making significant changes to Agenteer, use this checklist to verify functionality:
+
+### 1. Core Functionality
+- [ ] Database connections work properly
+- [ ] Environment variable loading functions correctly
+- [ ] CLI command help displays properly (`agenteer --help`)
+- [ ] Logging works as expected
+
+### 2. Agent Management
+- [ ] List agents (`agenteer list`)
+- [ ] Create agents of each type:
+  - [ ] Standard agent
+  - [ ] GitHub agent
+  - [ ] Mail agent
+  - [ ] Browser agent
+- [ ] Run agents (`agenteer run`)
+- [ ] Delete agents (`agenteer delete`)
+
+### 3. Agent Capabilities
+- [ ] Standard agent can answer queries and use tools
+- [ ] GitHub agent can interact with repositories
+- [ ] Mail agent can read and send emails
+- [ ] Browser agent can navigate and extract web content
+
+### 4. Browser Integration
+- [ ] Navigate to websites
+- [ ] Extract page content
+- [ ] Click elements
+- [ ] Type into fields
+- [ ] Take screenshots
+- [ ] Scroll pages
+- [ ] Handle timeouts and errors gracefully
+
+### 5. Flow System
+- [ ] Create plans from natural language instructions
+- [ ] Break tasks into steps
+- [ ] Execute plans with appropriate agent routing
+- [ ] Track progress and provide detailed reports
+- [ ] Handle failure cases gracefully
+
+### 6. UI (if applicable)
+- [ ] UI launches correctly (`agenteer ui`)
+- [ ] Agent creation form works
+- [ ] Agent running interface works
+- [ ] Documentation browsing works
+- [ ] Settings can be modified
+
+### 7. Documentation
+- [ ] Vector store functions correctly
+- [ ] Document preloading works (`agenteer preload-docs`)
+- [ ] Documentation search works
+
+### 8. Performance
+- [ ] Agents respond within reasonable timeframes
+- [ ] Memory usage is reasonable
+- [ ] No memory leaks during extended use (use tracemalloc to monitor)
+
+### 9. Security
+- [ ] Authentication works if enabled
+- [ ] Sensitive information is properly handled
+- [ ] API keys are securely stored and accessed
+
 ## Latest Development Updates (March 11, 2025)
 
 ### Mail Agent Enhancement
