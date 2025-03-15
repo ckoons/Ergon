@@ -1,20 +1,23 @@
 # Agenteer
 
-![Agenteer UI](images/icon.jpeg)
+<div align="center">
+  <img src="images/icon.jpeg" alt="Agenteer Logo" width="120"/>
+  <h3>The Intelligent Agent Builder</h3>
+</div>
 
-
-Agenteer is a streamlined AI agent builder focused on simplicity, performance, and usability. It enables the rapid creation, testing, and deployment of AI agents with minimal configuration. Agenteer produces functional agents using PydanticAI, LangChain, LangGraph, Anthropic MCP, OpenAI and other LLM modules.
+Agenteer is a streamlined AI agent platform with a powerful memory-enabled chat interface called **Nexus**. It enables the rapid creation, management, and usage of AI agents with intelligent recommendations and minimal configuration. Agenteer combines PydanticAI, LangChain, LangGraph, Anthropic, OpenAI and other LLM modules into an intuitive, conversation-driven experience.
 
 ## Key Features
 
+- **Nexus Interface**: Memory-enabled AI assistant that helps you find and use agents
+- **Intelligent Agent Recommendations**: Suggests the right agent based on your needs
+- **Comprehensive Documentation System**: Index, search, and manage documentation
 - **Zero-Config Setup**: Get started with minimal setup requirements
-- **Unified Interface**: CLI and web UI in a single package
-- **Local First**: Runs entirely on local resources when needed
-- **Extensible**: Plugin architecture for custom agent capabilities
-- **Performance**: Optimized for speed with local caching
-- **Documentation Crawler**: Automatically index documentation with progress tracking and caching
+- **Unified Interface**: Consistent experience across CLI and web UI
+- **Memory Capabilities**: Agents that remember past interactions
 - **GitHub Integration**: Create GitHub-specific agents with repository access
 - **Mail Integration**: Create email agents that can read and send email via Gmail and Outlook
+- **Agent Management**: Intuitive tools for creating, organizing, and using agents
 
 ## Installation
 
@@ -31,11 +34,11 @@ cd Agenteer
 # Activate the virtual environment
 source venv/bin/activate
 
-# Start the UI
+# Start the Nexus UI
 agenteer ui
 
 # Or use the wrapper script for cleaner output
-./run_ui.sh
+./run_chatbot
 
 # Or use the CLI
 agenteer create -n "my_agent" -d "A weather agent that fetches forecast data"
@@ -102,12 +105,10 @@ Agenteer automatically caches documentation for faster preloading in future sess
 
 The Agenteer UI is designed to be intuitive and streamlined:
 
-- **Home**: Dashboard with quick actions and recent activity
+- **Nexus**: Memory-enabled AI assistant for finding and using agents
+- **My Agents**: Browse, organize, and manage your created agents
 - **Create Agent**: Form to create new agents with different capabilities
-- **Existing Agents**: Browse and interact with your created agents
-- **Documentation**: Search, crawl, and browse documentation
-- **Web Search**: Crawl and index external documentation
-- **Settings**: Configure API keys, database, and models
+- **Documentation**: Preload, search, and manage documentation resources
 
 ## Architecture
 
@@ -260,41 +261,55 @@ agenteer delete "TestAgent"
 agenteer delete "MyAgent" --force
 ```
 
-### Using the Web UI
+### Using the Nexus Interface
 
-You can launch the web UI to interact with your agents in a more user-friendly interface:
+You can launch the Nexus interface to interact with your agents in an intuitive, conversation-driven experience:
 
 ```bash
+# Start the UI (using the convenience script for cleaner output)
+./run_chatbot
+
+# Or use the standard command
 agenteer ui
 ```
 
-The web UI provides several ways to work with agents:
+The Nexus interface provides several ways to work with agents:
 
-#### Running Agents in the UI
+#### Conversational Agent Usage
 
-1. Navigate to the "My Agents" page from the sidebar
-2. Select an agent from the dropdown menu at the top
-3. Use the Chat tab to interact with your agent:
-   - Type messages in the chat input at the bottom
-   - View the conversation history in the chat window
-   - Use the "Reset Chat" button to clear the conversation history
+1. Simply ask Nexus about your task or what you need help with
+2. Nexus will recommend appropriate agents based on your request
+3. Select the recommended agent from the sidebar
+4. Continue your conversation with the selected agent
 
-#### Agent Management in the UI
+#### Special Commands
 
-The UI provides several features for managing your agents:
+Nexus supports special commands to enhance your experience:
 
-- **Creating Agents**: Use the "Create Agent" page to set up new agents with different capabilities
-- **Viewing Agent Details**: The "My Agents" page shows details for each agent, including:
-  - Files tab: View the agent's system prompt and other configuration files
-  - Tools tab: See the tools available to the agent
-  - Executions tab: Review past agent executions and their results
-- **Deleting Agents**: Click the "Delete Agent" button on the agent details page to remove an agent
+- **!rate**: Open the feature importance rating interface to provide feedback
+- **!plan**: Generate and review implementation plans for features
 
-#### Other UI Features
+#### Agent Management
 
-- **Documentation**: Search and browse the documentation loaded into the system
-- **Web Search**: Crawl and index external documentation
-- **Settings**: Configure API keys, database connections, and other system settings
+The UI provides comprehensive agent management tools:
+
+- **Creating Agents**: 
+  - Use the "Create Agent" page for standard agent creation
+  - Create specialized Nexus agents directly from the chat interface
+
+- **Managing Agents**: The "My Agents" page provides:
+  - Organized view of agents by type
+  - One-click usage in Nexus
+  - Agent deletion with confirmation
+
+#### Documentation System
+
+The documentation interface allows you to:
+
+- Preload documentation from key frameworks (Pydantic, LangChain, LangGraph, Anthropic)
+- Search indexed documentation using semantic search
+- Add custom documentation from URLs or direct input
+- Track documentation status and statistics
 
 ### Agent Types
 
