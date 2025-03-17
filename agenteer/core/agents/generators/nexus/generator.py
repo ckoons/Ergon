@@ -78,14 +78,8 @@ try:
     HAS_ENGRAM_DIRECT = True
     logger.info("Using Engram package for Nexus agent")
 except ImportError:
-    # Fall back to legacy cmb package (temporary during migration)
-    try:
-        from cmb.cli.quickmem import auto_remember, memory_digest, z, d
-        HAS_ENGRAM_DIRECT = True
-        logger.warning("Using legacy CMB package for Nexus agent. Please upgrade to Engram.")
-    except ImportError:
-        HAS_ENGRAM_DIRECT = False
-        logger.warning("Neither Engram nor CMB package is available for Nexus agent")
+    HAS_ENGRAM_DIRECT = False
+    logger.warning("Engram package is not available for Nexus agent")
 
 logger = logging.getLogger(__name__)
 

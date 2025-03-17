@@ -2,7 +2,7 @@
 Memory management service for Agenteer.
 
 This service provides memory storage and retrieval capabilities using either:
-1. Engram (formerly ClaudeMemoryBridge) when available, leveraging its advanced memory features
+1. Engram when available, leveraging its advanced memory features
 2. A fallback file-based implementation when Engram is not available
 """
 
@@ -65,7 +65,7 @@ class MemoryService:
             True if successful, False otherwise
         """
         try:
-            # Use the CMB adapter to add memory
+            # Use the Engram adapter to add memory
             return await self.adapter.add(messages, user_id)
         except Exception as e:
             logger.error(f"Error adding memory: {str(e)}")
@@ -84,7 +84,7 @@ class MemoryService:
             Dictionary with search results
         """
         try:
-            # Use the CMB adapter to search
+            # Use the Engram adapter to search
             return await self.adapter.search(query, user_id, limit)
         except Exception as e:
             logger.error(f"Error searching memories: {str(e)}")
@@ -108,7 +108,7 @@ class MemoryService:
             Formatted string with relevant memories for context
         """
         try:
-            # Use the CMB adapter to get relevant context
+            # Use the Engram adapter to get relevant context
             return await self.adapter.get_relevant_context(query, user_id, limit)
         except Exception as e:
             logger.error(f"Error getting relevant context: {str(e)}")
@@ -125,7 +125,7 @@ class MemoryService:
             True if successful, False otherwise
         """
         try:
-            # Use the CMB adapter to clear memories
+            # Use the Engram adapter to clear memories
             return await self.adapter.clear(user_id)
         except Exception as e:
             logger.error(f"Error clearing memories: {str(e)}")

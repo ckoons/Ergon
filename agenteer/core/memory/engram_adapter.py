@@ -1,8 +1,8 @@
 """
 Engram Memory adapter for Agenteer.
 
-This module provides an adapter for integrating Engram (formerly ClaudeMemoryBridge) 
-with Agenteer, supporting both direct Engram service usage and fallback to 
+This module provides an adapter for integrating Engram with Agenteer, 
+supporting both direct Engram service usage and fallback to 
 file-based storage when Engram is not available.
 """
 
@@ -36,33 +36,16 @@ try:
         
     HAS_ENGRAM = True
 except ImportError:
-    # Fallback to legacy CMB (temporary during migration)
-    try:
-        # Direct imports from legacy ClaudeMemoryBridge
-        from cmb.cli.quickmem import (
-            status, process_message, start_nexus, end_nexus, auto_remember,
-            memory_digest, s, q, n, y, z, d,
-        )
-        
-        # Check if we can import core modules directly
-        from cmb.core.structured_memory import StructuredMemory
-        from cmb.core.nexus import NexusInterface
-        from cmb.core.memory import MemoryService as EngramMemoryService
-        HAS_ENGRAM_CORE = True
-            
-        HAS_ENGRAM = True
-        logger.warning("Using legacy CMB package. Please upgrade to Engram.")
-    except ImportError:
-        HAS_ENGRAM = False
-        HAS_ENGRAM_CORE = False
-        logger.warning("Engram not installed. Using fallback file-based memory.")
+    HAS_ENGRAM = False
+    HAS_ENGRAM_CORE = False
+    logger.warning("Engram not installed. Using fallback file-based memory.")
 
 # Default HTTP URL for the Engram API
 DEFAULT_ENGRAM_HTTP_URL = "http://127.0.0.1:8000"
 
 def _get_engram_http_url():
     """Get the HTTP URL for Engram API."""
-    return os.environ.get("ENGRAM_HTTP_URL", os.environ.get("CMB_HTTP_URL", DEFAULT_ENGRAM_HTTP_URL))
+    return os.environ.get("ENGRAM_HTTP_URL", DEFAULT_ENGRAM_HTTP_URL)
 
 def _safe_string(text: str) -> str:
     """URL-encode a string to make it safe for GET requests."""
@@ -84,7 +67,7 @@ def _check_engram_status(start_if_not_running: bool = False) -> bool:
         try:
             import subprocess
             result = subprocess.run(
-                ["pgrep", "-f", "engram.api.consolidated_server|cmb.api.consolidated_server"],
+                ["pgrep", "-f", "engram.api.consolidated_server"],
                 capture_output=True
             )
             if result.returncode == 0:
@@ -135,7 +118,6 @@ class EngramAdapter:
         
         # Set client ID for Engram
         os.environ["ENGRAM_CLIENT_ID"] = self.client_id
-        os.environ["CMB_CLIENT_ID"] = self.client_id  # For backwards compatibility
         self.engram_available = _check_engram_status()
         
         # For fallback: initialize file storage

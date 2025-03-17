@@ -5,15 +5,13 @@ typer>=0.9.0
 rich>=13.3.5
 python-dotenv>=1.0.0
 # Memory capabilities
-mem0ai==0.1.65  # Optional memory-related functionality
-# For testing both backends, uncomment:
-# cmb==0.1.0  # Legacy ClaudeMemoryBridge (deprecated) 
+mem0ai==0.1.65  # Optional vector search functionality
 
-# Engram - For enhanced memory persistence
+# Engram - Required for full memory persistence functionality
 # Will be available on PyPI in the future
-# For now, install from source with:
+# Install from source with:
 # pip install -e /Users/cskoons/projects/github/Engram
-# Or use our script: ./scripts/install_engram.sh
+# Or use our convenient script: ./scripts/install_engram.sh
 
 # Database
 SQLAlchemy>=2.0.0
