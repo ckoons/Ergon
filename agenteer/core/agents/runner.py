@@ -18,6 +18,10 @@ from agenteer.core.database.models import Agent, AgentExecution, AgentMessage, A
 from agenteer.core.llm.client import LLMClient
 from agenteer.utils.config.settings import settings
 
+# Configure logger
+logger = logging.getLogger(__name__)
+logger.setLevel(getattr(logging, settings.log_level.value))
+
 # Import the memory service
 try:
     from agenteer.core.memory.service import MemoryService
@@ -25,10 +29,6 @@ try:
 except ImportError:
     HAS_MEMORY = False
     logger.warning("Memory service not available, running without memory capabilities")
-
-# Configure logger
-logger = logging.getLogger(__name__)
-logger.setLevel(getattr(logging, settings.log_level.value))
 
 
 class AgentException(Exception):

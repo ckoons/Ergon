@@ -4,7 +4,16 @@ pydantic-settings>=2.0.0
 typer>=0.9.0
 rich>=13.3.5
 python-dotenv>=1.0.0
-mem0ai==0.1.65  # Memory capabilities
+# Memory capabilities
+mem0ai==0.1.65  # Optional memory-related functionality
+# For testing both backends, uncomment:
+# cmb==0.1.0  # Legacy ClaudeMemoryBridge (deprecated) 
+
+# Engram - For enhanced memory persistence
+# Will be available on PyPI in the future
+# For now, install from source with:
+# pip install -e /Users/cskoons/projects/github/Engram
+# Or use our script: ./scripts/install_engram.sh
 
 # Database
 SQLAlchemy>=2.0.0

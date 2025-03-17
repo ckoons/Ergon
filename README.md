@@ -282,6 +282,34 @@ The Nexus interface provides several ways to work with agents:
 3. Select the recommended agent from the sidebar
 4. Continue your conversation with the selected agent
 
+#### Memory-Enabled Experience
+
+Agenteer's Nexus features enhanced memory capabilities through integration with Engram (formerly ClaudeMemoryBridge):
+
+```bash
+# Create a new memory-enabled Nexus agent
+agenteer create -n "MemoryAgent" -d "Agent with enhanced memory capabilities" -t nexus
+
+# Chat with the memory agent in interactive mode
+agenteer nexus "MemoryAgent" --interactive
+
+# Single request with memory
+agenteer nexus "MemoryAgent" -i "Hello, do you remember me?"
+
+# Disable memory for a specific interaction
+agenteer nexus "MemoryAgent" -i "This is a private question" --no-memory
+```
+
+The Nexus memory system offers:
+
+- **Persistent Memory**: Information is remembered across different sessions
+- **Category Organization**: Memories are organized by category (personal, projects, facts, etc.)
+- **Importance Ranking**: 1-5 scoring system prioritizes critical information
+- **Auto-categorization**: Content is automatically analyzed to determine category and importance
+- **Rich Storage & Retrieval**: Optimized memory storage with tagging and metadata
+
+The system works automatically when Engram is installed, but gracefully falls back to local file-based storage when unavailable. If you're migrating from ClaudeMemoryBridge to Engram, see our [migration guide](MIGRATION.md).
+
 #### Special Commands
 
 Nexus supports special commands to enhance your experience:
