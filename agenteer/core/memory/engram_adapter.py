@@ -35,9 +35,20 @@ try:
     HAS_ENGRAM_CORE = True
         
     HAS_ENGRAM = True
+    
+    # Check if mem0ai is available - this is required for vector search
+    try:
+        import mem0ai
+        HAS_MEM0AI = True
+        logger.info(f"mem0ai library found, version: {mem0ai.__version__}")
+    except ImportError:
+        HAS_MEM0AI = False
+        logger.warning("mem0ai library not found, vector search will not be available")
+    
 except ImportError:
     HAS_ENGRAM = False
     HAS_ENGRAM_CORE = False
+    HAS_MEM0AI = False
     logger.warning("Engram not installed. Using fallback file-based memory.")
 
 # Default HTTP URL for the Engram API
@@ -51,7 +62,7 @@ def _safe_string(text: str) -> str:
     """URL-encode a string to make it safe for GET requests."""
     return urllib.parse.quote_plus(text)
 
-def _check_engram_status(start_if_not_running: bool = False) -> bool:
+def _check_engram_status(start_if_not_running: bool = False) -> dict:
     """
     Check if Engram service is running.
     
@@ -59,8 +70,17 @@ def _check_engram_status(start_if_not_running: bool = False) -> bool:
         start_if_not_running: Whether to start Engram if it's not running
         
     Returns:
-        True if Engram is running, False otherwise
+        Dict with status information, or True/False for backward compatibility
     """
+    # Create status dict that contains all the information
+    status_info = {
+        "available": False,
+        "mem0_available": False,
+        "vector_search_available": False,
+        "status": "offline",
+        "error": None
+    }
+    
     # Try to use quickmem status function if Engram is installed
     if HAS_ENGRAM:
         # First check if services are running using pgrep
@@ -71,29 +91,56 @@ def _check_engram_status(start_if_not_running: bool = False) -> bool:
                 capture_output=True
             )
             if result.returncode == 0:
-                return True
-        except:
-            # Fall back to quickmem status function
+                status_info["available"] = True
+                status_info["status"] = "running"
+        except Exception as e:
+            logger.debug(f"Error checking with pgrep: {e}")
+            
+        # If pgrep didn't confirm it's running, try the quickmem status function
+        if not status_info["available"]:
             try:
                 # Use asyncio to run the async function if needed
                 if asyncio.iscoroutinefunction(status):
                     loop = asyncio.get_event_loop()
-                    return loop.run_until_complete(status(start_if_not_running))
+                    status_result = loop.run_until_complete(status(start_if_not_running))
                 else:
-                    return status(start_if_not_running)
+                    status_result = status(start_if_not_running)
+                
+                if status_result and status_result.get("status") == "online":
+                    status_info["available"] = True
+                    status_info["status"] = "running"
             except Exception as e:
-                logger.error(f"Error checking Engram status: {e}")
-                return False
+                logger.debug(f"Error checking with quickmem status: {e}")
     
-    # Try checking HTTP API directly
-    try:
-        url = f"{_get_engram_http_url()}/http/health"
-        with urllib.request.urlopen(url, timeout=3) as response:
-            health_data = json.loads(response.read().decode())
-            return health_data.get("status") == "ok"
-    except Exception as e:
-        logger.error(f"Error checking Engram HTTP status: {e}")
-        return False
+    # If still not confirmed available, try checking HTTP API directly
+    if not status_info["available"]:
+        try:
+            url = f"{_get_engram_http_url()}/http/health"
+            with urllib.request.urlopen(url, timeout=3) as response:
+                health_data = json.loads(response.read().decode())
+                
+                if health_data.get("status") in ["ok", "degraded"]:
+                    status_info["available"] = True
+                    status_info["status"] = health_data.get("status")
+                    status_info["mem0_available"] = health_data.get("mem0_available", False)
+                    
+                    # Check for vector search availability
+                    # First check if the health endpoint already provides this info directly
+                    if "vector_search" in health_data:
+                        status_info["vector_search_available"] = health_data.get("vector_search", False)
+                    # Otherwise fall back to our own check
+                    elif status_info["mem0_available"] and 'HAS_MEM0AI' in globals() and HAS_MEM0AI:
+                        status_info["vector_search_available"] = True
+                        
+                    logger.info(f"Engram health check: status={status_info['status']}, " +
+                              f"mem0={status_info['mem0_available']}, " +
+                              f"vector_search={status_info['vector_search_available']}")
+        except Exception as e:
+            status_info["error"] = str(e)
+            logger.debug(f"Error checking Engram HTTP health: {e}")
+    
+    # For backward compatibility
+    return status_info
 
 class EngramAdapter:
     """
@@ -118,7 +165,26 @@ class EngramAdapter:
         
         # Set client ID for Engram
         os.environ["ENGRAM_CLIENT_ID"] = self.client_id
-        self.engram_available = _check_engram_status()
+        
+        # Check Engram status including mem0ai availability
+        status_info = _check_engram_status()
+        
+        # Set availability flags
+        if isinstance(status_info, dict):
+            self.engram_available = status_info.get("available", False)
+            self.vector_search_available = status_info.get("vector_search_available", False)
+            self.mem0_available = status_info.get("mem0_available", False)
+            self.status = status_info.get("status", "offline")
+            logger.info(f"Engram status check: available={self.engram_available}, " +
+                      f"vector_search={self.vector_search_available}, " +
+                      f"mem0={self.mem0_available}, status={self.status}")
+        else:
+            # For backward compatibility if the function returns a boolean
+            self.engram_available = bool(status_info)
+            # Check if mem0ai is available
+            self.vector_search_available = 'HAS_MEM0AI' in globals() and HAS_MEM0AI
+            self.mem0_available = False
+            self.status = "unknown"
         
         # For fallback: initialize file storage
         self.memories_dir = os.path.expanduser(f"~/.agenteer/memories/{agent_id}")
@@ -146,19 +212,35 @@ class EngramAdapter:
                 asyncio.create_task(self.nexus.start_session(self.agent_name))
                 
                 logger.info(f"Initialized Engram core components for agent {self.agent_id} ({self.agent_name})")
+                
+                # Log vector search status
+                if self.vector_search_available:
+                    logger.info("Vector search is available through mem0ai")
+                else:
+                    logger.warning("Vector search is NOT available - mem0ai not found or not working")
             except Exception as e:
                 logger.error(f"Error initializing Engram core components: {e}")
                 self.engram_memory_service = None
                 self.structured_memory = None
                 self.nexus = None
+                self.vector_search_available = False
         else:
             self.engram_memory_service = None
             self.structured_memory = None
             self.nexus = None
+            self.vector_search_available = False
             
         # Create session ID for this instance
         self.session_id = f"session-{int(time.time())}"
-        logger.info(f"EngramAdapter initialized for agent {self.agent_id} ({self.agent_name}), Engram available: {self.engram_available}")
+        
+        # Log initialization status
+        if self.engram_available:
+            if self.vector_search_available:
+                logger.info(f"EngramAdapter initialized for agent {self.agent_id} ({self.agent_name}) with vector search capability")
+            else:
+                logger.info(f"EngramAdapter initialized for agent {self.agent_id} ({self.agent_name}) with file-based memory (no vector search)")
+        else:
+            logger.info(f"EngramAdapter initialized for agent {self.agent_id} ({self.agent_name}) with local fallback storage")
     
     def _load_memories(self) -> Dict[str, Any]:
         """Load memories from file for fallback mode."""

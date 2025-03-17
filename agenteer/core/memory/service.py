@@ -51,7 +51,7 @@ class MemoryService:
         logger.info(f"Memory service initialized for agent {self.agent_id} ({self.agent_name})")
         
         # For compatibility with old code
-        self.mem0_available = self.adapter.engram_available
+        self.mem0_available = self.adapter.engram_available and getattr(self.adapter, 'vector_search_available', False)
     
     async def add(self, messages: List[Dict[str, str]], user_id: str = "default") -> bool:
         """
