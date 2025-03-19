@@ -10,27 +10,35 @@ When starting work today, please read the memory note file at `/Users/cskoons/pr
  
 **Update: We have successfully migrated from ClaudeMemoryBridge (CMB) to Engram and completely removed all CMB fallback code. The code is now much simpler, only relying on the Engram system for memory persistence.**
 
-### Latest Memory System Updates (March 17, 2025)
+### Latest Memory System Updates (March 19, 2025)
 
 Today we made several improvements to the memory system:
 
-1. **Vector Storage Compatibility**:
-   - Updated EngramAdapter to better support mem0ai library
-   - Improved connection detection to Engram memory services
-   - Added diagnostics for identifying health check issues
-   - Enhanced fallback functionality when vector search isn't available
+1. **RAG System Enhancements**:
+   - Created a lightweight RAG utility (`rag.py`) for easier integration in any agent or tool
+   - Implemented a clean interface for memory operations separate from agent code
+   - Added tool functions that can be registered with any agent
+   - Fixed asyncio error in agent runner to properly support timeouts
+   - Created thorough documentation in README.md
 
 2. **Memory Service Robustness**:
-   - Improved error handling in EngramAdapter for connection issues
-   - Better reporting of service status for both file-based and vector implementations
-   - Added implementation type awareness for more intelligent fallback behavior
-   - Enhanced memory_service.py to better handle different Engram capabilities
-
-3. **Memory Configuration Improvements**:
-   - Set consistent mem0ai version (0.1.67) across both projects
-   - Updated import paths to use the correct mem0ai module
-   - Better diagnostic information in log messages
-   - Fixed confusion around mem0 vs. mem0ai imports
+   - Fixed bugs in EngramAdapter and MemoryService classes
+   - Improved direct memory retrieval for Nexus agents
+   - Better error handling throughout the memory system
+   - Updated for compatibility with direct Engram integration
+   
+3. **Removed mem0ai Dependencies**:
+   - Successfully removed all mem0ai dependencies from Agenteer's memory system
+   - Replaced with direct use of Engram's vector database functionality
+   - Updated imports to use correct Engram modules
+   - Created GitHub PR for mem0ai dependency removal
+   - Enhanced status checks for Engram's vector search availability
+   
+4. **Architecture Improvements**:
+   - Created modular architecture that cleanly separates memory from agent logic
+   - Designed singleton RAG utility with clean API for easy import
+   - Enhanced tool registration for future agent architecture
+   - Added backward compatibility for existing code
 
 Today we'll be implementing the balanced approach for the Claude Memory Bridge enhancements:
 

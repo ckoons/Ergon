@@ -125,7 +125,8 @@ class AgentRunner:
             if self.timeout:
                 # Run with timeout
                 try:
-                    return asyncio.run(self._run_with_timeout(input_text))
+                    # Directly await the timeout function instead of using asyncio.run()
+                    return await self._run_with_timeout(input_text)
                 except asyncio.TimeoutError:
                     elapsed_time = (datetime.now() - start_time).total_seconds()
                     error_msg = f"Agent '{self.agent.name}' execution timed out after {elapsed_time:.2f} seconds (timeout: {self.timeout}s)"
