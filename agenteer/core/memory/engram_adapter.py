@@ -36,19 +36,15 @@ try:
         
     HAS_ENGRAM = True
     
-    # Check if mem0ai is available - this is required for vector search
-    try:
-        import mem0ai
-        HAS_MEM0AI = True
-        logger.info(f"mem0ai library found, version: {mem0ai.__version__}")
-    except ImportError:
-        HAS_MEM0AI = False
-        logger.warning("mem0ai library not found, vector search will not be available")
+    # Check for vector search availability through Engram
+    # This is now handled by Engram directly, but we keep the variable for compatibility
+    HAS_VECTOR_SEARCH = True
+    logger.info("Checking for vector database availability through Engram")
     
 except ImportError:
     HAS_ENGRAM = False
     HAS_ENGRAM_CORE = False
-    HAS_MEM0AI = False
+    HAS_VECTOR_SEARCH = False
     logger.warning("Engram not installed. Using fallback file-based memory.")
 
 # Default HTTP URL for the Engram API
@@ -75,7 +71,6 @@ def _check_engram_status(start_if_not_running: bool = False) -> dict:
     # Create status dict that contains all the information
     status_info = {
         "available": False,
-        "mem0_available": False,
         "vector_search_available": False,
         "status": "offline",
         "error": None
@@ -122,18 +117,14 @@ def _check_engram_status(start_if_not_running: bool = False) -> dict:
                 if health_data.get("status") in ["ok", "degraded"]:
                     status_info["available"] = True
                     status_info["status"] = health_data.get("status")
-                    status_info["mem0_available"] = health_data.get("mem0_available", False)
-                    
                     # Check for vector search availability
                     # First check if the health endpoint already provides this info directly
                     if "vector_search" in health_data:
                         status_info["vector_search_available"] = health_data.get("vector_search", False)
-                    # Otherwise fall back to our own check
-                    elif status_info["mem0_available"] and 'HAS_MEM0AI' in globals() and HAS_MEM0AI:
-                        status_info["vector_search_available"] = True
+                    elif "vector_db_available" in health_data:
+                        status_info["vector_search_available"] = health_data.get("vector_db_available", False)
                         
                     logger.info(f"Engram health check: status={status_info['status']}, " +
-                              f"mem0={status_info['mem0_available']}, " +
                               f"vector_search={status_info['vector_search_available']}")
         except Exception as e:
             status_info["error"] = str(e)
@@ -173,17 +164,14 @@ class EngramAdapter:
         if isinstance(status_info, dict):
             self.engram_available = status_info.get("available", False)
             self.vector_search_available = status_info.get("vector_search_available", False)
-            self.mem0_available = status_info.get("mem0_available", False)
             self.status = status_info.get("status", "offline")
             logger.info(f"Engram status check: available={self.engram_available}, " +
-                      f"vector_search={self.vector_search_available}, " +
-                      f"mem0={self.mem0_available}, status={self.status}")
+                      f"vector_search={self.vector_search_available}, status={self.status}")
         else:
             # For backward compatibility if the function returns a boolean
             self.engram_available = bool(status_info)
-            # Check if mem0ai is available
-            self.vector_search_available = 'HAS_MEM0AI' in globals() and HAS_MEM0AI
-            self.mem0_available = False
+            # Vector search availability depends on Engram's implementation
+            self.vector_search_available = HAS_VECTOR_SEARCH
             self.status = "unknown"
         
         # For fallback: initialize file storage
@@ -215,9 +203,9 @@ class EngramAdapter:
                 
                 # Log vector search status
                 if self.vector_search_available:
-                    logger.info("Vector search is available through mem0ai")
+                    logger.info("Vector search is available through Engram's vector database")
                 else:
-                    logger.warning("Vector search is NOT available - mem0ai not found or not working")
+                    logger.warning("Vector search is NOT available - using fallback file-based storage in Engram")
             except Exception as e:
                 logger.error(f"Error initializing Engram core components: {e}")
                 self.engram_memory_service = None

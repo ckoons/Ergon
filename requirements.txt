@@ -4,14 +4,16 @@ pydantic-settings>=2.0.0
 typer>=0.9.0
 rich>=13.3.5
 python-dotenv>=1.0.0
-# Memory capabilities
-mem0ai==0.1.67  # Vector search functionality for memory
 
-# Engram - Required for full memory persistence functionality
-# Will be available on PyPI in the future
+# Engram - Required for full memory persistence functionality 
 # Install from source with:
 # pip install -e /Users/cskoons/projects/github/Engram
 # Or use our convenient script: ./scripts/install_engram.sh
+
+# Vector search dependencies - installed with Engram
+# These are listed here for reference but will be installed with Engram
+# qdrant-client>=1.7.0
+# sentence-transformers>=2.2.2
 
 # Database
 SQLAlchemy>=2.0.0
