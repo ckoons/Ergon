@@ -7,4 +7,4 @@ export AGENTEER_AUTHENTICATION=false
 source venv/bin/activate
 
 # Run the UI
-python -m agenteer.cli.main ui
+python -m ergon.cli.main ui

@@ -7,7 +7,7 @@ import asyncio
 import os
 import json
 from unittest.mock import MagicMock, patch, mock_open
-from agenteer.core.agents.mail.service import MailService, get_mail_service, setup_mail_provider
+from ergon.core.agents.mail.service import MailService, get_mail_service, setup_mail_provider
 
 
 @pytest.mark.asyncio
@@ -63,20 +63,20 @@ async def test_get_mail_service_singleton():
     mock_service_outlook = MagicMock()
     
     # Patch MailService to return our mock instances
-    with patch('agenteer.core.agents.mail.service.MailService') as mock_service_class:
+    with patch('ergon.core.agents.mail.service.MailService') as mock_service_class:
         mock_service_class.side_effect = lambda provider_type: mock_service_gmail if provider_type == "gmail" else mock_service_outlook
         
         # Also need to patch these to avoid errors
-        with patch('agenteer.core.agents.mail.service.settings') as mock_settings:
+        with patch('ergon.core.agents.mail.service.settings') as mock_settings:
             mock_settings.config_path = '/tmp'
             
-            with patch('agenteer.core.agents.mail.providers.settings') as mock_provider_settings:
+            with patch('ergon.core.agents.mail.providers.settings') as mock_provider_settings:
                 mock_provider_settings.config_path = '/tmp'
                 
                 with patch('os.path.exists', return_value=False):
                     # Reset singleton at the start
-                    import agenteer.core.agents.mail.service
-                    agenteer.core.agents.mail.service._mail_service_instance = None
+                    import ergon.core.agents.mail.service
+                    ergon.core.agents.mail.service._mail_service_instance = None
                     
                     # Get service instances
                     service1 = get_mail_service("gmail")
@@ -99,7 +99,7 @@ async def test_get_mail_service_singleton():
 @pytest.mark.asyncio
 async def test_setup_mail_provider():
     """Test setup_mail_provider function."""
-    with patch('agenteer.core.agents.mail.service.get_mail_service') as mock_get_service:
+    with patch('ergon.core.agents.mail.service.get_mail_service') as mock_get_service:
         # Set up the mock service
         mock_service = MagicMock()
         

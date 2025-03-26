@@ -7,14 +7,14 @@ with open("requirements.txt", "r", encoding="utf-8") as f:
     requirements = f.read().splitlines()
 
 setup(
-    name="agenteer",
+    name="ergon",
     version="0.1.0",
     author="AI Agent Team",
     author_email="info@example.com",
     description="A streamlined AI agent builder with minimal configuration",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/agenteer",
+    url="https://github.com/ckoons/Ergon",
     packages=find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -27,7 +27,7 @@ setup(
     install_requires=requirements,
     entry_points={
         "console_scripts": [
-            "agenteer=agenteer.cli.main:app",
+            "ergon=ergon.cli.main:app",
         ],
     },
     include_package_data=True,

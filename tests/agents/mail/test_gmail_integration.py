@@ -8,7 +8,7 @@ import os
 import json
 import base64
 from unittest.mock import MagicMock, patch, mock_open
-from agenteer.core.agents.mail.providers import GmailProvider
+from ergon.core.agents.mail.providers import GmailProvider
 
 
 @pytest.mark.asyncio
@@ -32,7 +32,7 @@ async def test_gmail_provider_initialization():
 async def test_gmail_authentication_with_existing_token():
     """Test Gmail authentication with existing token."""
     # First patch settings so we can create a GmailProvider instance
-    with patch('agenteer.core.agents.mail.providers.settings') as mock_settings:
+    with patch('ergon.core.agents.mail.providers.settings') as mock_settings:
         # Mock the settings
         mock_settings.config_path = '/tmp'
         
@@ -68,7 +68,7 @@ async def test_gmail_authentication_with_existing_token():
 async def test_gmail_get_inbox_mock():
     """Test Gmail get_inbox function with simplified mocking."""
     # Patch settings
-    with patch('agenteer.core.agents.mail.providers.settings') as mock_settings:
+    with patch('ergon.core.agents.mail.providers.settings') as mock_settings:
         # Mock the settings
         mock_settings.config_path = '/tmp'
         
@@ -121,7 +121,7 @@ async def test_gmail_get_inbox_mock():
 async def test_gmail_send_message_mock():
     """Test Gmail send_message function with simplified mocking."""
     # Patch settings
-    with patch('agenteer.core.agents.mail.providers.settings') as mock_settings:
+    with patch('ergon.core.agents.mail.providers.settings') as mock_settings:
         # Mock the settings
         mock_settings.config_path = '/tmp'
         

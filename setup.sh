@@ -2,7 +2,7 @@
 
 set -e
 
-echo "🤖 Setting up Agenteer..."
+echo "🤖 Setting up Ergon..."
 
 # Check if Python is installed
 if \! command -v python3 &> /dev/null; then
@@ -35,7 +35,7 @@ echo "📥 Installing dependencies..."
 pip install -r requirements.txt
 
 # Install package in development mode
-echo "🔧 Installing Agenteer in development mode..."
+echo "🔧 Installing Ergon in development mode..."
 pip install -e .
 
 # Create .env file if it doesn't exist
@@ -91,12 +91,12 @@ fi
 
 # Initialize database
 echo "🗃️ Initializing database..."
-agenteer init
+ergon init
 
-echo "✅ Setup complete\! You can now use Agenteer:"
+echo "✅ Setup complete\! You can now use Ergon:"
 echo ""
-echo "🖥️ Start the UI:           agenteer ui"
-echo "📋 List agents:            agenteer list"
-echo "🤖 Create a new agent:     agenteer create -n \"my_agent\" -d \"Description\""
+echo "🖥️ Start the UI:           ergon ui"
+echo "📋 List agents:            ergon list"
+echo "🤖 Create a new agent:     ergon create -n \"my_agent\" -d \"Description\""
 echo ""
-echo "📚 For more information, run: agenteer --help"
+echo "📚 For more information, run: ergon --help"

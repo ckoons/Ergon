@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Simple GitHub agent that can be used directly or from Agenteer.
+Simple GitHub agent that can be used directly or from Ergon.
 """
 
 import os

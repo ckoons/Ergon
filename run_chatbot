@@ -33,11 +33,11 @@ export AGENTEER_AUTHENTICATION=false
 # To see all Streamlit logs for debugging
 export STREAMLIT_LOG_LEVEL=debug
 
-# Run the Agenteer UI with PyTorch warnings suppressed
+# Run the Ergon UI with PyTorch warnings suppressed
 echo "Starting Streamlit server..."
 PYTHONWARNINGS="ignore:Tried to instantiate class:RuntimeWarning" \
 PYTHONWARNINGS="ignore::DeprecationWarning" \
-streamlit run agenteer/ui/app.py --server.headless=true
+streamlit run ergon/ui/app.py --server.headless=true
 
 echo "=== Server stopped ==="
 

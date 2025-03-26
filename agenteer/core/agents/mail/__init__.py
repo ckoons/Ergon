@@ -1,1 +1,0 @@
-"""Mail agent package for Agenteer."""

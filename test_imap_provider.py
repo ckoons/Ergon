@@ -8,7 +8,7 @@ import getpass
 import json
 from typing import Dict, Any
 
-from agenteer.core.agents.mail.imap_provider import ImapSmtpProvider
+from ergon.core.agents.mail.imap_provider import ImapSmtpProvider
 
 
 async def test_imap_provider():
@@ -92,8 +92,8 @@ async def test_imap_provider():
         print("\nSending test email...", end="", flush=True)
         result = await provider.send_message(
             to=[to_email],
-            subject="Agenteer IMAP/SMTP Test",
-            body="This is a test email from Agenteer IMAP/SMTP provider."
+            subject="Ergon IMAP/SMTP Test",
+            body="This is a test email from Ergon IMAP/SMTP provider."
         )
         
         if result:

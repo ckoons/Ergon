@@ -5,15 +5,15 @@ Tests for HTML email functionality.
 import pytest
 import asyncio
 from unittest.mock import MagicMock, patch
-from agenteer.core.agents.mail.service import MailService
-from agenteer.core.agents.mail.providers import GmailProvider
+from ergon.core.agents.mail.service import MailService
+from ergon.core.agents.mail.providers import GmailProvider
 
 
 @pytest.mark.asyncio
 async def test_gmail_html_email_simplified():
     """Test sending HTML emails with Gmail provider using simplified mocking."""
     # Patch settings
-    with patch('agenteer.core.agents.mail.providers.settings') as mock_settings:
+    with patch('ergon.core.agents.mail.providers.settings') as mock_settings:
         # Mock the settings
         mock_settings.config_path = '/tmp'
         

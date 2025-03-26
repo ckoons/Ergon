@@ -4,11 +4,11 @@ import json
 from sqlalchemy import Column, String
 from sqlalchemy.ext.declarative import declarative_base
 
-# Add the current directory to the path so we can import from the agenteer package
+# Add the current directory to the path so we can import from the ergon package
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from agenteer.core.database.engine import get_db_session
-from agenteer.core.database.models import Agent, AgentTool, AgentFile
+from ergon.core.database.engine import get_db_session
+from ergon.core.database.models import Agent, AgentTool, AgentFile
 
 def fix_mail_agent():
     """Fix the mail agent by adding a 'type' column to the agent model."""

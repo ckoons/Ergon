@@ -2,8 +2,8 @@
 Tests for Mail Agent Generator.
 """
 
-from agenteer.core.agents.generators.mail_generator import generate_mail_agent
-from agenteer.core.agents.mail.tools import mail_tool_definitions
+from ergon.core.agents.generators.mail_generator import generate_mail_agent
+from ergon.core.agents.mail.tools import mail_tool_definitions
 
 
 def test_generate_mail_agent():

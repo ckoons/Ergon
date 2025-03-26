@@ -1,14 +1,14 @@
 version: '3.8'
 
 services:
-  agenteer:
+  ergon:
     build:
       context: .
     ports:
       - "8501:8501"  # Streamlit UI
       - "8000:8000"  # API (when enabled)
     volumes:
-      - agenteer-data:/data
+      - ergon-data:/data
       - .env:/app/.env:ro
       - .env.owner:/app/.env.owner:ro
     command: ui
@@ -24,4 +24,4 @@ services:
       start_period: 10s
 
 volumes:
-  agenteer-data:
+  ergon-data:

@@ -3,10 +3,10 @@ import sys
 import os
 import time
 
-# Add the project root to the path so we can import from agenteer
+# Add the project root to the path so we can import from ergon
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from agenteer.core.agents.browser.service import BrowserService
+from ergon.core.agents.browser.service import BrowserService
 
 async def test_browser():
     """Test the browser service with a simple Google search for Chinese lunar calendar 1935"""

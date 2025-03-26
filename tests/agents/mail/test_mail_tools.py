@@ -5,7 +5,7 @@ Tests for Mail Agent tools.
 import pytest
 import asyncio
 from unittest.mock import MagicMock, patch
-from agenteer.core.agents.mail.tools import MailTools, mail_tool_definitions, register_mail_tools
+from ergon.core.agents.mail.tools import MailTools, mail_tool_definitions, register_mail_tools
 
 
 def test_mail_tool_definitions():
@@ -34,7 +34,7 @@ def test_mail_tool_definitions():
 async def test_get_inbox_tool():
     """Test get_inbox mail tool."""
     # Mock the mail service
-    with patch('agenteer.core.agents.mail.tools.get_mail_service') as mock_get_service:
+    with patch('ergon.core.agents.mail.tools.get_mail_service') as mock_get_service:
         # Set up the mock service
         mock_service = MagicMock()
         mock_inbox = [
@@ -62,7 +62,7 @@ async def test_get_inbox_tool():
 async def test_send_message_tool():
     """Test send_message mail tool."""
     # Mock the mail service
-    with patch('agenteer.core.agents.mail.tools.get_mail_service') as mock_get_service:
+    with patch('ergon.core.agents.mail.tools.get_mail_service') as mock_get_service:
         # Set up the mock service
         mock_service = MagicMock()
         

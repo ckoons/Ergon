@@ -32,7 +32,7 @@ RUN pip install -e .
 RUN mkdir -p /data/database /data/vector_store
 
 # Set environment variables for volumes
-ENV DATABASE_URL=sqlite:////data/database/agenteer.db \
+ENV DATABASE_URL=sqlite:////data/database/ergon.db \
     VECTOR_DB_PATH=/data/vector_store
 
 # Create .env file from example if it doesn't exist

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Preload documentation script for Agenteer Docker image.
+Preload documentation script for Ergon Docker image.
 
 This script is used to pre-crawl and index documentation from
 Pydantic, LangChain, LangGraph, and Anthropic during Docker image build.
@@ -11,17 +11,17 @@ import logging
 import os
 import sys
 
-# Add parent directory to path so we can import agenteer modules
+# Add parent directory to path so we can import ergon modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from agenteer.core.docs.crawler import (
+from ergon.core.docs.crawler import (
     crawl_pydantic_ai_docs,
     crawl_langchain_docs,
     crawl_anthropic_docs,
     crawl_langgraph_docs
 )
-from agenteer.core.database.engine import init_db
-from agenteer.utils.config.settings import settings
+from ergon.core.database.engine import init_db
+from ergon.utils.config.settings import settings
 
 # Configure logger
 logging.basicConfig(level=logging.INFO)

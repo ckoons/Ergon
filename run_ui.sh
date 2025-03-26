@@ -9,5 +9,5 @@ export PYTHONWARNINGS=ignore
 export STREAMLIT_SILENCE_TORCH_WARNINGS=1
 
 # Run the UI
-echo "Starting Agenteer UI..."
-python -m agenteer.cli.main ui
+echo "Starting Ergon UI..."
+python -m ergon.cli.main ui
