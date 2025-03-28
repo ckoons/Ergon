@@ -1,11 +1,11 @@
-# Agenteer
+# Ergon
 
 <div align="center">
-  <img src="images/icon.jpeg" alt="Agenteer Logo" width="120"/>
+  <img src="images/icon.jpeg" alt="Ergon Logo" width="800"/>
   <h3>The Intelligent Agent Builder</h3>
 </div>
 
-Agenteer is a streamlined AI agent platform with a powerful memory-enabled chat interface called **Nexus**. It enables the rapid creation, management, and usage of AI agents with intelligent recommendations and minimal configuration. Agenteer combines PydanticAI, LangChain, LangGraph, Anthropic, OpenAI and other LLM modules into an intuitive, conversation-driven experience.
+Ergon is a streamlined AI agent platform with a powerful memory-enabled chat interface called **Nexus**. It enables the rapid creation, management, and usage of AI agents with intelligent recommendations and minimal configuration. Ergon combines PydanticAI, LangChain, LangGraph, Anthropic, OpenAI and other LLM modules into an intuitive, conversation-driven experience.
 
 ## Key Features
 
@@ -25,8 +25,8 @@ Agenteer is a streamlined AI agent platform with a powerful memory-enabled chat 
 
 ```bash
 # Clone the repository
-git clone https://github.com/ckoons/Agenteer.git
-cd Agenteer
+git clone https://github.com/ckoons/Ergon.git
+cd Ergon
 
 # Run the setup script
 ./setup.sh
@@ -60,7 +60,7 @@ docker run -p 8501:8501 -p 8000:8000 agenteer
 
 ### Documentation Preloading
 
-Agenteer offers built-in documentation preloading to enhance agent capabilities. There are several ways to preload documentation:
+Ergon offers built-in documentation preloading to enhance agent capabilities. There are several ways to preload documentation:
 
 1. **Via the UI (Recommended)**: 
    Navigate to the Documentation or Web Search pages in the UI. If no documentation is found, you'll see a "Preload Essential Documentation" button that will automatically crawl and index documentation from Pydantic, LangChain, LangGraph, and Anthropic.
@@ -93,7 +93,7 @@ Agenteer offers built-in documentation preloading to enhance agent capabilities.
 
 The preloaded documentation enables agents to leverage knowledge from these frameworks when responding to queries, making them more effective for framework-specific tasks.
 
-Agenteer automatically caches documentation for faster preloading in future sessions. Cached documentation is stored in the `vector_store/doc_cache` directory and is valid for 7 days, after which it will be refreshed automatically. This ensures your documentation stays current while minimizing network usage.
+Ergon automatically caches documentation for faster preloading in future sessions. Cached documentation is stored in the `vector_store/doc_cache` directory and is valid for 7 days, after which it will be refreshed automatically. This ensures your documentation stays current while minimizing network usage.
 
 ## Requirements
 
@@ -103,7 +103,7 @@ Agenteer automatically caches documentation for faster preloading in future sess
 
 ## UI Overview
 
-The Agenteer UI is designed to be intuitive and streamlined:
+The Ergon UI is designed to be intuitive and streamlined:
 
 - **Nexus**: Memory-enabled AI assistant for finding and using agents
 - **My Agents**: Browse, organize, and manage your created agents
@@ -112,7 +112,7 @@ The Agenteer UI is designed to be intuitive and streamlined:
 
 ## Architecture
 
-Agenteer consists of several core components:
+Ergon consists of several core components:
 
 1. **Core Engine**: Agent generation and execution logic
 2. **Local Database**: SQLite-based storage for agents and sessions
@@ -124,7 +124,7 @@ Agenteer consists of several core components:
 
 ## Configuration
 
-Agenteer uses a hierarchical configuration system with environment variables loaded from multiple files in the following priority order:
+Ergon uses a hierarchical configuration system with environment variables loaded from multiple files in the following priority order:
 
 1. `.env.owner`: Highest priority, personal settings not checked into version control
 2. `.env.local`: Middle priority, machine-specific settings not checked into version control 
@@ -134,7 +134,7 @@ Values in earlier files override those in later files. All files are loaded, cre
 
 ### Authentication Configuration
 
-Agenteer includes a configurable authentication system controlled via the `AGENTEER_AUTHENTICATION` environment variable:
+Ergon includes a configurable authentication system controlled via the `AGENTEER_AUTHENTICATION` environment variable:
 
 - `AGENTEER_AUTHENTICATION=true` (default): User authentication is required
 - `AGENTEER_AUTHENTICATION=false`: Authentication is bypassed (useful for testing)
@@ -172,7 +172,7 @@ DEBUG=false
 
 ## Working with Agents
 
-Agenteer provides a unified interface for creating, running, and managing AI agents through both the CLI and web UI.
+Ergon provides a unified interface for creating, running, and managing AI agents through both the CLI and web UI.
 
 ### Creating Agents
 
@@ -213,7 +213,7 @@ agenteer run "MailAgent" -i "Your input here" --timeout 30 --timeout-action alar
 
 ### Agent Timeout Management
 
-Agenteer provides built-in timeout functionality to monitor and control agent executions:
+Ergon provides built-in timeout functionality to monitor and control agent executions:
 
 #### Timeout Options
 
@@ -284,7 +284,7 @@ The Nexus interface provides several ways to work with agents:
 
 #### Memory-Enabled Experience
 
-Agenteer's Nexus features enhanced memory capabilities through integration with Engram (formerly ClaudeMemoryBridge):
+Ergon's Nexus features enhanced memory capabilities through integration with Engram (formerly ClaudeMemoryBridge):
 
 ```bash
 # Create a new memory-enabled Nexus agent
