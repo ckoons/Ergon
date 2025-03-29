@@ -1,280 +1,350 @@
 """
-Lightweight RAG (Retrieval Augmented Generation) utility for Ergon.
+Retrieval Augmented Generation (RAG) utility for Ergon.
 
-This module provides a simple interface for using RAG capabilities
-with any agent or tool, abstracting away the details of the underlying
-memory systems (Engram or fallback storage).
+This module provides RAG capabilities for agents and tools,
+making it easy to incorporate memory in any LLM interaction.
 """
 
 import logging
 import asyncio
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any, Optional, Union, Tuple
 
-from ergon.core.memory.engram_adapter import EngramAdapter, _check_engram_status
+from ergon.core.memory.service import MemoryService
+from ergon.core.memory.utils.categories import MemoryCategory
+from ergon.utils.config.settings import settings
 
+# Configure logger
 logger = logging.getLogger(__name__)
 
-class RAGUtils:
+class RAGService:
     """
-    Utility class for Retrieval Augmented Generation.
+    Retrieval Augmented Generation service for Ergon.
     
-    This lightweight class wraps the EngramAdapter to provide RAG functionality
-    that can be easily imported and used by any agent or tool.
+    This service provides high-level RAG utilities for enhancing
+    LLM prompts with relevant memories and managing memory storage.
     """
     
-    def __init__(self, agent_id: Optional[int] = None, agent_name: Optional[str] = None):
+    def __init__(self, agent_id: int, agent_name: Optional[str] = None):
         """
-        Initialize the RAG utility.
+        Initialize the RAG service.
         
         Args:
-            agent_id: Optional agent ID for memory isolation
+            agent_id: Agent ID for the memory context
             agent_name: Optional agent name for better logging
         """
         self.agent_id = agent_id
         self.agent_name = agent_name
         
-        # Initialize the adapter if agent_id is provided
-        self.adapter = None
-        if agent_id:
-            self.adapter = EngramAdapter(agent_id=agent_id, agent_name=agent_name)
+        # Initialize memory service
+        self.memory_service = MemoryService(agent_id=agent_id, agent_name=agent_name)
         
-        # Check if Engram is available (even without an adapter)
-        self.engram_status = _check_engram_status()
-        self.engram_available = self.engram_status.get("available", False)
-        self.vector_search_available = self.engram_status.get("vector_search_available", False)
+        logger.info(f"RAG service initialized for agent {agent_id}")
     
-    def initialize_for_agent(self, agent_id: int, agent_name: Optional[str] = None) -> bool:
+    async def initialize(self):
+        """Initialize the RAG service."""
+        await self.memory_service.initialize()
+    
+    async def augment_prompt(self, 
+                           system_prompt: str, 
+                           user_query: str,
+                           categories: List[str] = None,
+                           min_importance: int = 2,
+                           limit: int = 3) -> str:
         """
-        Initialize the RAG utility for a specific agent.
+        Augment a system prompt with relevant memories.
         
         Args:
-            agent_id: The agent ID to use for memory isolation
-            agent_name: Optional agent name for better logging
-            
-        Returns:
-            True if initialization was successful
-        """
-        self.agent_id = agent_id
-        self.agent_name = agent_name
-        
-        try:
-            self.adapter = EngramAdapter(agent_id=agent_id, agent_name=agent_name)
-            return True
-        except Exception as e:
-            logger.error(f"Error initializing RAG for agent {agent_id}: {e}")
-            return False
-    
-    async def retrieve_context(self, query: str, limit: int = 3) -> str:
-        """
-        Retrieve context relevant to the query.
-        
-        Args:
-            query: The query to find relevant memories for
-            limit: Maximum number of memories to include
-            
-        Returns:
-            Formatted string with relevant memories
-        """
-        if not self.adapter:
-            logger.warning("RAG utility not initialized with an agent_id")
-            return ""
-        
-        try:
-            return await self.adapter.get_relevant_context(query, limit=limit)
-        except Exception as e:
-            logger.error(f"Error retrieving context: {e}")
-            return ""
-    
-    async def search(self, query: str, limit: int = 5) -> Dict[str, Any]:
-        """
-        Search memories by relevance to query.
-        
-        Args:
-            query: The search query
-            limit: Maximum number of results to return
-            
-        Returns:
-            Dictionary with search results
-        """
-        if not self.adapter:
-            logger.warning("RAG utility not initialized with an agent_id")
-            return {"results": []}
-        
-        try:
-            return await self.adapter.search(query, limit=limit)
-        except Exception as e:
-            logger.error(f"Error searching memories: {e}")
-            return {"results": []}
-    
-    async def store(self, content: Union[str, List[Dict[str, str]]], memory_type: str = "session") -> bool:
-        """
-        Store content in memory.
-        
-        Args:
-            content: Text content or list of message objects to store
-            memory_type: Type of memory (e.g., "session", "personal", "fact")
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        if not self.adapter:
-            logger.warning("RAG utility not initialized with an agent_id")
-            return False
-        
-        try:
-            # Convert string content to message format if needed
-            if isinstance(content, str):
-                messages = [{"role": "system", "content": content}]
-            else:
-                messages = content
-            
-            # Store the memory
-            return await self.adapter.add(messages, user_id=memory_type)
-        except Exception as e:
-            logger.error(f"Error storing memory: {e}")
-            return False
-    
-    async def augment_prompt(self, original_prompt: str, user_query: str, limit: int = 3) -> str:
-        """
-        Augment a prompt with relevant context.
-        
-        Args:
-            original_prompt: The original system prompt
-            user_query: The user's query to find relevant context for
+            system_prompt: Original system prompt
+            user_query: User query to find relevant memories for
+            categories: Optional list of categories to search in
+            min_importance: Minimum importance score
             limit: Maximum number of memories to include
             
         Returns:
             Augmented prompt with relevant memories
         """
-        if not self.adapter:
-            logger.warning("RAG utility not initialized with an agent_id")
-            return original_prompt
+        # Get relevant context
+        context = await self.memory_service.get_relevant_context(
+            query=user_query,
+            categories=categories,
+            min_importance=min_importance,
+            limit=limit
+        )
         
-        try:
-            # Get relevant context
-            context = await self.adapter.get_relevant_context(user_query, limit=limit)
+        # If no context found, return original prompt
+        if not context:
+            return system_prompt
+        
+        # Combine with original prompt
+        return f"{system_prompt}\n\n{context}"
+    
+    async def store_interaction(self, 
+                              user_message: str, 
+                              assistant_response: str,
+                              interaction_importance: int = 2) -> Tuple[str, str]:
+        """
+        Store a user-assistant interaction in memory.
+        
+        Args:
+            user_message: User message
+            assistant_response: Assistant response
+            interaction_importance: Importance score for the interaction
             
-            # If context was found, append it to the prompt
-            if context:
-                return f"{original_prompt}\n\n{context}"
+        Returns:
+            Tuple of (user_memory_id, assistant_memory_id)
+        """
+        # Store user message with default category and importance
+        user_memory_id = await self.memory_service.add_memory(
+            content=user_message,
+            category=MemoryCategory.SESSION,
+            importance=interaction_importance
+        )
+        
+        # Store assistant response with default category and importance
+        assistant_memory_id = await self.memory_service.add_memory(
+            content=assistant_response,
+            category=MemoryCategory.SESSION,
+            importance=interaction_importance
+        )
+        
+        return user_memory_id, assistant_memory_id
+    
+    async def store_memory(self, 
+                         content: str, 
+                         category: str = None, 
+                         importance: int = None) -> str:
+        """
+        Store a memory with optional category and importance.
+        
+        Args:
+            content: Memory content
+            category: Optional category (auto-detected if not provided)
+            importance: Optional importance (auto-assigned if not provided)
             
-            # Otherwise return the original prompt
-            return original_prompt
-        except Exception as e:
-            logger.error(f"Error augmenting prompt: {e}")
-            return original_prompt
-    
-    def is_available(self) -> bool:
-        """
-        Check if RAG capabilities are available.
-        
         Returns:
-            True if RAG capabilities are available
+            Memory ID
         """
-        return self.engram_available
+        return await self.memory_service.add_memory(
+            content=content,
+            category=category,
+            importance=importance
+        )
     
-    def has_vector_search(self) -> bool:
+    async def search_memories(self, 
+                           query: str, 
+                           categories: List[str] = None,
+                           min_importance: int = 1,
+                           limit: int = 5) -> List[Dict[str, Any]]:
         """
-        Check if vector search capabilities are available.
+        Search for relevant memories.
         
+        Args:
+            query: Search query
+            categories: Optional list of categories to search in
+            min_importance: Minimum importance score
+            limit: Maximum number of results
+            
         Returns:
-            True if vector search is available
+            List of matching memories
         """
-        return self.vector_search_available
+        return await self.memory_service.search(
+            query=query,
+            categories=categories,
+            min_importance=min_importance,
+            limit=limit
+        )
     
-    def close(self) -> bool:
+    async def get_recent_memories(self, 
+                               categories: List[str] = None,
+                               min_importance: int = None,
+                               limit: int = 5) -> List[Dict[str, Any]]:
         """
-        Clean up resources.
+        Get most recent memories.
+        
+        Args:
+            categories: Optional list of categories to filter by
+            min_importance: Optional minimum importance to filter by
+            limit: Maximum number of results
+            
+        Returns:
+            List of memories
+        """
+        return await self.memory_service.get_recent(
+            categories=categories,
+            min_importance=min_importance,
+            limit=limit
+        )
+    
+    async def close(self) -> bool:
+        """
+        Close the RAG service and clean up resources.
         
         Returns:
             True if successful
         """
-        if self.adapter:
-            return self.adapter.close()
-        return True
-
-
-# Create a singleton instance for easy import
-rag = RAGUtils()
+        return await self.memory_service.close()
 
 
 class RAGToolFunctions:
     """
-    Tool functions that can be registered with agents to provide RAG capabilities.
+    Memory-related tool functions for agents.
     
-    Usage:
-        # Initialize with an agent ID
-        rag_tools = RAGToolFunctions(agent_id=42)
-        
-        # Register with an agent's tool functions
-        tools = {}
-        rag_tools.register_tools(tools)
+    This class provides tool functions that can be registered with
+    agents to give them memory capabilities.
     """
     
     def __init__(self, agent_id: int, agent_name: Optional[str] = None):
         """
-        Initialize RAG tool functions.
+        Initialize memory tool functions.
         
         Args:
-            agent_id: The agent ID to use for memory isolation
+            agent_id: Agent ID for the memory context
             agent_name: Optional agent name for better logging
         """
-        self.utils = RAGUtils(agent_id=agent_id, agent_name=agent_name)
+        self.agent_id = agent_id
+        self.agent_name = agent_name
+        self.rag_service = RAGService(agent_id=agent_id, agent_name=agent_name)
     
-    async def retrieve_memory(self, query: str, limit: int = 3) -> str:
-        """Tool function to search memories for relevant information."""
-        try:
-            memory_results = await self.utils.search(query, limit=limit)
+    async def initialize(self):
+        """Initialize the tool functions."""
+        await self.rag_service.initialize()
+    
+    async def search_memory(self, query: str, category: Optional[str] = None) -> str:
+        """
+        Tool function to search memories by query.
+        
+        Args:
+            query: Search query
+            category: Optional category to search in
             
-            if not memory_results or not memory_results.get("results"):
+        Returns:
+            Formatted string with search results
+        """
+        categories = [category] if category else None
+        
+        try:
+            # Search memories
+            memories = await self.rag_service.search_memories(
+                query=query,
+                categories=categories,
+                limit=5
+            )
+            
+            if not memories:
                 return "No relevant memories found."
             
-            response = "Found the following relevant memories:\n\n"
-            for i, memory in enumerate(memory_results["results"]):
-                response += f"{i+1}. {memory['memory']}\n\n"
+            # Format results
+            result = "Here are the memories I found:\n\n"
+            for i, memory in enumerate(memories):
+                category_str = memory["category"].capitalize()
+                importance_str = "★" * memory["importance"]
+                result += f"{i+1}. [{category_str}] {memory['content']}\n"
+                result += f"   Importance: {importance_str} ({memory['importance']}/5), "
+                result += f"Relevance: {memory['score']:.2f}\n\n"
             
-            return response
+            return result
         except Exception as e:
-            logger.error(f"Error in retrieve_memory tool: {e}")
-            return f"Error retrieving memories: {str(e)}"
+            logger.error(f"Error in search_memory tool: {e}")
+            return f"Error searching memories: {str(e)}"
     
-    async def store_memory(self, content: str, memory_type: str = "personal") -> str:
-        """Tool function to store a memory for future reference."""
-        try:
-            success = await self.utils.store(content, memory_type=memory_type)
+    async def store_important_fact(self, content: str, importance: int = 4) -> str:
+        """
+        Tool function to store an important fact in memory.
+        
+        Args:
+            content: Fact to remember
+            importance: Importance score (1-5)
             
-            if success:
-                return f"Successfully stored memory as {memory_type} memory"
-            else:
-                return f"Failed to store memory"
+        Returns:
+            Confirmation message
+        """
+        try:
+            # Validate importance
+            importance = max(1, min(5, importance))
+            
+            # Store memory
+            memory_id = await self.rag_service.store_memory(
+                content=content,
+                category=MemoryCategory.FACTUAL,
+                importance=importance
+            )
+            
+            return f"I've stored this important fact in my memory with importance level {importance}/5."
         except Exception as e:
-            logger.error(f"Error in store_memory tool: {e}")
-            return f"Error storing memory: {str(e)}"
+            logger.error(f"Error in store_important_fact tool: {e}")
+            return f"Error storing fact: {str(e)}"
     
-    async def remember_interaction(self, user_message: str, agent_response: str) -> str:
-        """Tool function to store an interaction in memory."""
-        try:
-            messages = [
-                {"role": "user", "content": user_message},
-                {"role": "assistant", "content": agent_response}
-            ]
-            success = await self.utils.store(messages, memory_type="session")
+    async def remember_preference(self, preference: str) -> str:
+        """
+        Tool function to store a user preference in memory.
+        
+        Args:
+            preference: User preference to remember
             
-            if success:
-                return "Interaction stored in memory successfully."
-            else:
-                return "Failed to store interaction in memory."
+        Returns:
+            Confirmation message
+        """
+        try:
+            # Store with high importance
+            memory_id = await self.rag_service.store_memory(
+                content=preference,
+                category=MemoryCategory.PREFERENCE,
+                importance=4  # Preferences are important by default
+            )
+            
+            return f"I'll remember your preference: {preference}"
         except Exception as e:
-            logger.error(f"Error in remember_interaction tool: {e}")
-            return f"Error storing interaction: {str(e)}"
+            logger.error(f"Error in remember_preference tool: {e}")
+            return f"Error remembering preference: {str(e)}"
+    
+    async def get_recent_memories(self, category: Optional[str] = None, limit: int = 5) -> str:
+        """
+        Tool function to retrieve recent memories.
+        
+        Args:
+            category: Optional category to filter by
+            limit: Maximum number of memories to retrieve
+            
+        Returns:
+            Formatted string with recent memories
+        """
+        try:
+            # Validate limit
+            limit = min(20, max(1, limit))  # Between 1 and 20
+            
+            # Get recent memories
+            categories = [category] if category else None
+            memories = await self.rag_service.get_recent_memories(
+                categories=categories,
+                limit=limit
+            )
+            
+            if not memories:
+                return "No memories found."
+            
+            # Format results
+            result = f"Here are your {limit} most recent memories:\n\n"
+            for i, memory in enumerate(memories):
+                category_str = memory["category"].capitalize()
+                importance_str = "★" * memory["importance"]
+                created_at = memory["created_at"].strftime("%Y-%m-%d %H:%M")
+                result += f"{i+1}. [{category_str}] {memory['content']}\n"
+                result += f"   Importance: {importance_str} ({memory['importance']}/5), "
+                result += f"Created: {created_at}\n\n"
+            
+            return result
+        except Exception as e:
+            logger.error(f"Error in get_recent_memories tool: {e}")
+            return f"Error retrieving recent memories: {str(e)}"
     
     def register_tools(self, tools_dict: Dict[str, callable]) -> None:
         """
-        Register RAG tool functions in a tools dictionary.
+        Register all memory tool functions.
         
         Args:
-            tools_dict: Dictionary to register the tools in
+            tools_dict: Dictionary to register tools in
         """
-        tools_dict["retrieve_memory"] = self.retrieve_memory
-        tools_dict["store_memory"] = self.store_memory
-        tools_dict["remember_interaction"] = self.remember_interaction
+        tools_dict["search_memory"] = self.search_memory
+        tools_dict["store_important_fact"] = self.store_important_fact
+        tools_dict["remember_preference"] = self.remember_preference
+        tools_dict["get_recent_memories"] = self.get_recent_memories

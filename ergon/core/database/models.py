@@ -1,214 +1,136 @@
-"""
-SQLAlchemy models for Ergon database.
-"""
-
-from sqlalchemy import Column, Integer, String, Text, Boolean, ForeignKey, DateTime, Float
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-from datetime import datetime
-from typing import List, Dict, Any, Optional
-import json
-
+"""Database models for Ergon."""
+import enum
+from sqlalchemy import Column, Integer, String, ForeignKey, Text, Boolean, DateTime, JSON, Enum, Table, Float
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
+from datetime import datetime
+
+# Create base class for declarative models
 Base = declarative_base()
 
+# Association table for agent <-> tools
+agent_tool = Table(
+    'agent_tools',
+    Base.metadata,
+    Column('agent_id', Integer, ForeignKey('agents.id'), primary_key=True),
+    Column('tool_id', Integer, ForeignKey('tools.id'), primary_key=True)
+)
+
+# Association table for agent <-> component
+agent_component = Table(
+    'agent_components',
+    Base.metadata,
+    Column('agent_id', Integer, ForeignKey('agents.id'), primary_key=True),
+    Column('component_id', Integer, ForeignKey('components.id'), primary_key=True)
+)
+
+class AgentType(enum.Enum):
+    """Agent type enumeration."""
+    CUSTOM = "custom"
+    MAIL = "mail"
+    BROWSER = "browser"
+    GITHUB = "github"
+    NEXUS = "nexus"
+    CODE = "code"
+    
+class ComponentType(enum.Enum):
+    """Component type enumeration."""
+    AGENT = "agent"
+    TOOL = "tool"
+    WORKFLOW = "workflow"
 
 class Agent(Base):
-    """Agent model representing a created AI assistant."""
-    __tablename__ = "agents"
+    """Agent model representing an AI agent instance."""
+    __tablename__ = 'agents'
     
     id = Column(Integer, primary_key=True)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    agent_type = Column(Enum(AgentType), default=AgentType.CUSTOM)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
     # Agent configuration
     model_name = Column(String(255), nullable=False)
     system_prompt = Column(Text, nullable=True)
     
     # Relationships
-    tools = relationship("AgentTool", back_populates="agent", cascade="all, delete-orphan")
-    files = relationship("AgentFile", back_populates="agent", cascade="all, delete-orphan")
-    executions = relationship("AgentExecution", back_populates="agent", cascade="all, delete-orphan")
-    
-    # Add type property to handle agents without type column in database
-    @property
-    def type(self) -> str:
-        """Get the agent type from name"""
-        # Infer type from name - avoid accessing relationships that might not be loaded
-        name_lower = self.name.lower()
-        if 'mail' in name_lower or 'email' in name_lower:
-            return 'mail'
-        elif 'browser' in name_lower:
-            return 'browser'
-        elif 'github' in name_lower:
-            return 'github'
-        elif 'nexus' in name_lower:
-            return 'nexus'
-        else:
-            return 'standard'
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert agent to dictionary."""
-        return {
-            "id": self.id,
-            "name": self.name,
-            "description": self.description,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-            "model_name": self.model_name,
-            "system_prompt": self.system_prompt,
-            "type": self.type,
-            "tools": [tool.to_dict() for tool in self.tools],
-            "files": [file.to_dict() for file in self.files],
-        }
+    tools = relationship("Tool", secondary=agent_tool, back_populates="agents")
+    components = relationship("Component", secondary=agent_component, back_populates="agents")
+    memories = relationship("Memory", back_populates="agent")
 
-
-class AgentTool(Base):
-    """Tool associated with an agent."""
-    __tablename__ = "agent_tools"
+class Tool(Base):
+    """Tool model representing a function an agent can use."""
+    __tablename__ = 'tools'
     
     id = Column(Integer, primary_key=True)
-    agent_id = Column(Integer, ForeignKey("agents.id"))
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
-    function_def = Column(Text, nullable=False)  # JSON string of function definition
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    function_name = Column(String(255), nullable=False)
+    module_path = Column(String(255), nullable=False)
+    is_async = Column(Boolean, default=False)
     
     # Relationships
-    agent = relationship("Agent", back_populates="tools")
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert tool to dictionary."""
-        return {
-            "id": self.id,
-            "agent_id": self.agent_id,
-            "name": self.name,
-            "description": self.description,
-            "function_def": json.loads(self.function_def) if self.function_def else None,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-        }
+    agents = relationship("Agent", secondary=agent_tool, back_populates="tools")
 
-
-class AgentFile(Base):
-    """File associated with an agent."""
-    __tablename__ = "agent_files"
+class Component(Base):
+    """Component model representing a reusable component."""
+    __tablename__ = 'components'
     
     id = Column(Integer, primary_key=True)
-    agent_id = Column(Integer, ForeignKey("agents.id"))
-    filename = Column(String(255), nullable=False)
-    file_type = Column(String(50), nullable=False)  # e.g., "python", "requirements", "env"
-    content = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    component_type = Column(Enum(ComponentType), default=ComponentType.TOOL)
+    source_code = Column(Text, nullable=False)
     
     # Relationships
-    agent = relationship("Agent", back_populates="files")
+    meta_items = relationship("ComponentMetadata", back_populates="component")
+    agents = relationship("Agent", secondary=agent_component, back_populates="components")
     
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert file to dictionary."""
-        return {
-            "id": self.id,
-            "agent_id": self.agent_id,
-            "filename": self.filename,
-            "file_type": self.file_type,
-            "content": self.content,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-        }
-
-
-class AgentExecution(Base):
-    """Record of an agent execution."""
-    __tablename__ = "agent_executions"
+class ComponentMetadata(Base):
+    """Metadata for components."""
+    __tablename__ = 'component_metadata'
     
     id = Column(Integer, primary_key=True)
-    agent_id = Column(Integer, ForeignKey("agents.id"))
-    started_at = Column(DateTime, default=func.now())
-    completed_at = Column(DateTime, nullable=True)
-    success = Column(Boolean, nullable=True)
+    component_id = Column(Integer, ForeignKey('components.id'))
+    key = Column(String(255), nullable=False)
+    value = Column(Text, nullable=False)
     
     # Relationships
-    agent = relationship("Agent", back_populates="executions")
-    messages = relationship("AgentMessage", back_populates="execution", cascade="all, delete-orphan")
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert execution to dictionary."""
-        return {
-            "id": self.id,
-            "agent_id": self.agent_id,
-            "started_at": self.started_at.isoformat() if self.started_at else None,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
-            "success": self.success,
-            "messages": [message.to_dict() for message in self.messages],
-        }
+    component = relationship("Component", back_populates="meta_items")
 
-
-class AgentMessage(Base):
-    """Message in an agent execution."""
-    __tablename__ = "agent_messages"
+# Import memory models
+try:
+    from ergon.core.memory.models.schema import Memory, MemoryCollection
+except ImportError:
+    # If memory models aren't available yet, define placeholder classes
+    # This allows the database to be created even without the memory module
     
-    id = Column(Integer, primary_key=True)
-    execution_id = Column(Integer, ForeignKey("agent_executions.id"))
-    role = Column(String(50), nullable=False)  # "user", "assistant", "system", "tool"
-    content = Column(Text, nullable=False)
-    timestamp = Column(DateTime, default=func.now())
-    
-    # For tool calls/responses
-    tool_name = Column(String(255), nullable=True)
-    tool_input = Column(Text, nullable=True)  # JSON string
-    tool_output = Column(Text, nullable=True)
-    
-    # Relationships
-    execution = relationship("AgentExecution", back_populates="messages")
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert message to dictionary."""
-        result = {
-            "id": self.id,
-            "execution_id": self.execution_id,
-            "role": self.role,
-            "content": self.content,
-            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
-        }
+    class Memory(Base):
+        """Memory model for agent memory storage."""
+        __tablename__ = 'memories'
         
-        if self.role == "tool":
-            result.update({
-                "tool_name": self.tool_name,
-                "tool_input": json.loads(self.tool_input) if self.tool_input else None,
-                "tool_output": self.tool_output,
-            })
-            
-        return result
-
-
-class DocumentationPage(Base):
-    """Documentation page for agent creation references."""
-    __tablename__ = "documentation_pages"
+        id = Column(String(255), primary_key=True)
+        agent_id = Column(Integer, ForeignKey('agents.id'))
+        collection_id = Column(String(255), ForeignKey('memory_collections.id'), nullable=True)
+        content = Column(Text, nullable=False)
+        category = Column(String(50), index=True)
+        importance = Column(Integer, default=3)
+        created_at = Column(DateTime, default=datetime.utcnow)
+        metadata = Column(JSON, nullable=True)
+        
+        # Relationships
+        agent = relationship("Agent", back_populates="memories")
+        collection = relationship("MemoryCollection", back_populates="memories")
     
-    id = Column(Integer, primary_key=True)
-    title = Column(String(255), nullable=False)
-    content = Column(Text, nullable=False)
-    url = Column(String(512), nullable=True)
-    source = Column(String(255), nullable=True)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    
-    # Vector embedding metadata
-    embedding_id = Column(String(255), nullable=True)
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert documentation page to dictionary."""
-        return {
-            "id": self.id,
-            "title": self.title,
-            "content": self.content,
-            "url": self.url,
-            "source": self.source,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-            "embedding_id": self.embedding_id,
-        }
+    class MemoryCollection(Base):
+        """Collection of memories for organizational purposes."""
+        __tablename__ = "memory_collections"
+        
+        id = Column(String(255), primary_key=True)
+        name = Column(String(255), nullable=False)
+        description = Column(Text, nullable=True)
+        created_at = Column(DateTime, default=datetime.utcnow)
+        
+        # Relationships
+        memories = relationship("Memory", back_populates="collection")

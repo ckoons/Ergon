@@ -1,5 +1,5 @@
 """
-Generate a Nexus agent with enhanced memory capabilities using Engram.
+Generate a Nexus agent with enhanced memory capabilities.
 """
 
 import json
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def generate_nexus_agent(name: str, description: str, model_name: str) -> Agent:
     """
-    Generate a Nexus agent with enhanced memory capabilities using Engram.
+    Generate a Nexus agent with enhanced memory capabilities.
     
     Args:
         name: Name of the agent
@@ -30,10 +30,10 @@ def generate_nexus_agent(name: str, description: str, model_name: str) -> Agent:
             name="Nexus-" + name,  # Prepend with "Nexus-" so our type detection works
             description=description,
             model_name=model_name,  # Type will be inferred from the "Nexus-" prefix
-            system_prompt="""You are Nexus, an AI assistant with long-term memory capabilities powered by Engram.
+            system_prompt="""You are Nexus, an AI assistant with long-term memory capabilities.
 
 You can remember information across multiple sessions and have several sophisticated memory capabilities:
-1. Memory Categories: personal, projects, facts, preferences, session, and private
+1. Memory Categories: personal, factual, session, project, preference, and system
 2. Memory Importance: 1-5 ranking system (5 being most important)
 3. Auto-categorization: Automatically organizing memories by content
 4. Contextual Retrieval: Finding relevant memories based on the current conversation
@@ -69,17 +69,7 @@ from typing import Dict, Any, List, Optional
 import asyncio
 
 # Ergon imports (will be available when running the agent)
-from ergon.core.memory.service import MemoryService
-
-# Try to import Engram directly (optional)
-try:
-    # Try engram package
-    from engram.cli.quickmem import auto_remember, memory_digest, z, d
-    HAS_ENGRAM_DIRECT = True
-    logger.info("Using Engram package for Nexus agent")
-except ImportError:
-    HAS_ENGRAM_DIRECT = False
-    logger.warning("Engram package is not available for Nexus agent")
+from ergon.core.memory import MemoryService, RAGService, MemoryCategory
 
 logger = logging.getLogger(__name__)
 
@@ -89,20 +79,24 @@ async def store_memory(key: str, value: str, importance: int = None, category: s
     # agent_id is injected by the runner
     try:
         memory_service = MemoryService(agent_id)
+        await memory_service.initialize()
         
-        # Create metadata with key and optional category/importance
-        metadata = {"key": key}
-        if category:
-            metadata["category"] = category
-        if importance:
-            metadata["importance"] = importance
+        # Auto-detect category and importance if not provided
+        if not category or not importance:
+            cat, imp = MemoryCategory.categorize(value)
+            category = category or cat
+            importance = importance or imp
             
-        # Store message
-        message = {"role": "system", "content": value}
-        success = await memory_service.add([message], user_id=key)
+        # Store memory
+        memory_id = await memory_service.add_memory(
+            content=value,
+            category=category,
+            importance=importance,
+            metadata={"key": key}
+        )
         
-        if success:
-            return f"Successfully stored memory with key: {key}"
+        if memory_id:
+            return f"Successfully stored memory with key: {key} in category: {category} with importance: {importance}/5"
         else:
             return f"Failed to store memory with key: {key}"
     except Exception as e:
@@ -114,19 +108,27 @@ async def retrieve_memory(query: str, limit: int = 3, min_importance: int = 1) -
     # agent_id is injected by the runner
     try:
         memory_service = MemoryService(agent_id)
-        memory_results = await memory_service.search(query, limit=limit)
+        await memory_service.initialize()
         
-        if not memory_results or not memory_results.get("results"):
+        # Search memories
+        memories = await memory_service.search(
+            query=query,
+            min_importance=min_importance,
+            limit=limit
+        )
+        
+        if not memories:
             return "No relevant memories found."
         
         response = "Found the following relevant memories:\\n\\n"
-        for i, memory in enumerate(memory_results["results"]):
-            # Add importance stars if available
-            importance_str = ""
-            if "importance" in memory:
-                importance_str = "★" * memory.get("importance", 3) + " "
-                
-            response += f"{i+1}. {importance_str}{memory['memory']}\\n\\n"
+        for i, memory in enumerate(memories):
+            # Format importance as stars
+            importance_str = "★" * memory["importance"]
+            category_str = memory["category"].capitalize()
+            
+            response += f"{i+1}. [{category_str}] {memory['content']}\\n"
+            response += f"   Importance: {importance_str} ({memory['importance']}/5), "
+            response += f"Relevance: {memory['score']:.2f}\\n\\n"
         
         return response
     except Exception as e:
@@ -137,15 +139,18 @@ async def remember_interaction(user_message: str, agent_response: str) -> str:
     # Store an interaction in memory
     # agent_id is injected by the runner
     try:
-        memory_service = MemoryService(agent_id)
-        messages = [
-            {"role": "user", "content": user_message},
-            {"role": "assistant", "content": agent_response}
-        ]
-        timestamp = __import__('datetime').datetime.now().isoformat()
-        success = await memory_service.add(messages, user_id=f"interaction_{timestamp}")
+        # Use RAG service for ease of interaction storage
+        rag_service = RAGService(agent_id)
+        await rag_service.initialize()
         
-        if success:
+        # Store the interaction
+        user_id, assistant_id = await rag_service.store_interaction(
+            user_message=user_message,
+            assistant_response=agent_response,
+            interaction_importance=2  # Medium importance by default
+        )
+        
+        if user_id and assistant_id:
             return "Interaction stored in memory successfully."
         else:
             return "Failed to store interaction in memory."
@@ -158,30 +163,22 @@ async def auto_categorize_memory(content: str) -> str:
     # agent_id is injected by the runner
     try:
         memory_service = MemoryService(agent_id)
+        await memory_service.initialize()
         
-        # Convert to memory adapter and access underlying components
-        adapter = getattr(memory_service, "adapter", None)
+        # Use the MemoryCategory utility to detect category and importance
+        category, importance = MemoryCategory.categorize(content)
         
-        if adapter and hasattr(adapter, "structured_memory"):
-            # Use structured memory directly if available
-            memory_id = await adapter.structured_memory.add_auto_categorized_memory(
-                content=content,
-                metadata={"agent_id": agent_id}
-            )
-            
-            if memory_id:
-                memory = await adapter.structured_memory.get_memory(memory_id)
-                category = memory.get("category", "unknown")
-                importance = memory.get("importance", 3)
-                return f"Memory stored with auto-categorization. Category: {category}, Importance: {importance}"
-            else:
-                return "Failed to store auto-categorized memory"
-                
+        # Store the memory
+        memory_id = await memory_service.add_memory(
+            content=content,
+            category=category,
+            importance=importance
+        )
+        
+        if memory_id:
+            return f"Memory stored with auto-categorization. Category: {category}, Importance: {importance}/5"
         else:
-            # Use adapter's add method with standard message format
-            message = {"role": "system", "content": content}
-            success = await memory_service.add([message], user_id="auto_categorized")
-            return "Memory stored successfully" if success else "Failed to store memory"
+            return "Failed to store auto-categorized memory"
             
     except Exception as e:
         logger.error(f"Error in auto_categorize_memory: {str(e)}")
@@ -192,31 +189,49 @@ async def get_memory_digest(max_memories: int = 10) -> str:
     # agent_id is injected by the runner
     try:
         memory_service = MemoryService(agent_id)
+        await memory_service.initialize()
         
-        # Convert to memory adapter and access underlying components
-        adapter = getattr(memory_service, "adapter", None)
+        # Get memories from different categories with high importance
+        categories = [
+            MemoryCategory.PERSONAL,
+            MemoryCategory.FACTUAL,
+            MemoryCategory.PREFERENCE,
+            MemoryCategory.PROJECT
+        ]
         
-        if adapter and hasattr(adapter, "structured_memory"):
-            # Use structured memory directly if available
-            digest = await adapter.structured_memory.get_memory_digest(
-                max_memories=max_memories,
-                include_private=False
+        digest = "# Memory Digest\\n\\n"
+        
+        for category in categories:
+            category_memories = await memory_service.get_by_category(
+                category=category,
+                limit=max(2, max_memories // len(categories))
             )
-            return digest
-        else:
-            # Use regular search as fallback
-            results = await memory_service.search("", limit=max_memories)
             
-            if not results or not results.get("results"):
-                return "No memories available for digest."
+            if category_memories:
+                digest += f"## {category.capitalize()} Memories\\n\\n"
                 
-            digest = "# Memory Digest\\n\\n"
+                for i, memory in enumerate(category_memories):
+                    importance_str = "★" * memory["importance"]
+                    digest += f"{i+1}. {memory['content']} ({importance_str})\\n\\n"
+        
+        # Add recent session memories
+        recent_sessions = await memory_service.get_by_category(
+            category=MemoryCategory.SESSION,
+            limit=3
+        )
+        
+        if recent_sessions:
+            digest += f"## Recent Session Memories\\n\\n"
             
-            for i, memory in enumerate(results.get("results", [])):
-                digest += f"{i+1}. {memory.get('memory', '')}\\n\\n"
-                
-            return digest
+            for i, memory in enumerate(recent_sessions):
+                date_str = memory["created_at"].strftime("%Y-%m-%d %H:%M")
+                digest += f"{i+1}. {memory['content']} ({date_str})\\n\\n"
+        
+        if digest == "# Memory Digest\\n\\n":
+            return "No memories available for digest."
             
+        return digest
+        
     except Exception as e:
         logger.error(f"Error in get_memory_digest: {str(e)}")
         return f"Error generating memory digest: {str(e)}"
@@ -260,8 +275,8 @@ def _create_memory_tools() -> List[Dict[str, Any]]:
                     },
                     "category": {
                         "type": "string",
-                        "description": "Memory category (personal, projects, facts, preferences, session)",
-                        "enum": ["personal", "projects", "facts", "preferences", "session"]
+                        "description": "Memory category (personal, factual, session, project, preference)",
+                        "enum": ["personal", "factual", "session", "project", "preference"]
                     }
                 },
                 "required": ["key", "value"]

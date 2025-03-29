@@ -1,146 +1,423 @@
 """
-Memory management service for Ergon.
+Core memory service for Ergon.
 
-This service provides memory storage and retrieval capabilities using either:
-1. Engram when available, leveraging its advanced memory features
-2. A fallback file-based implementation when Engram is not available
+This module provides the main memory service that manages storage and retrieval
+of agent memories using Tekton's shared vector database approach.
 """
 
 import json
 import logging
 import os
-from typing import Dict, List, Any, Optional
+import time
+import uuid
+from typing import Dict, List, Any, Optional, Union
 from datetime import datetime
-
-# Import the Engram adapter
-from ergon.core.memory.engram_adapter import EngramAdapter
 
 from ergon.core.database.engine import get_db_session
 from ergon.core.database.models import Agent
+from ergon.core.memory.models.schema import Memory
+from ergon.core.memory.utils.categories import MemoryCategory
+from ergon.core.memory.services.embedding import embedding_service
+from ergon.core.memory.services.vector_store import MemoryVectorService
 from ergon.utils.config.settings import settings
 
+# Configure logger
 logger = logging.getLogger(__name__)
 
 class MemoryService:
     """
-    Memory service for agents with Engram integration.
+    Core memory service with persistent storage and retrieval.
     
-    This service provides a uniform interface for memory operations,
-    automatically using Engram when available and falling
-    back to local storage when it's not.
+    This service uses a combination of SQL database for metadata storage
+    and Tekton's vector store for embedding storage and semantic search.
     """
     
-    def __init__(self, agent_id: int):
+    def __init__(self, agent_id: int, agent_name: str = None):
         """
         Initialize the memory service.
         
         Args:
             agent_id: The ID of the agent to manage memories for
+            agent_name: Optional name of the agent (for better logging)
         """
         self.agent_id = agent_id
+        self.agent_name = agent_name
         
-        # Get agent details
-        with get_db_session() as db:
-            agent = db.query(Agent).filter(Agent.id == self.agent_id).first()
-            if not agent:
-                raise ValueError(f"Agent with ID {self.agent_id} not found")
-            self.agent_name = agent.name
-            
-        # Initialize the Engram adapter which handles both Engram and fallback
-        self.adapter = EngramAdapter(agent_id=agent_id, agent_name=self.agent_name)
+        # Get agent details if name not provided
+        if not self.agent_name:
+            with get_db_session() as db:
+                agent = db.query(Agent).filter(Agent.id == self.agent_id).first()
+                if agent:
+                    self.agent_name = agent.name
+                else:
+                    self.agent_name = f"Agent-{self.agent_id}"
+        
+        # Create namespace for isolation
+        self.namespace = f"agent_{self.agent_id}"
+        
+        # Initialize vector store
+        self.vector_store = MemoryVectorService(namespace=self.namespace)
+        
         logger.info(f"Memory service initialized for agent {self.agent_id} ({self.agent_name})")
-        
-        # For compatibility with old code
-        self.mem0_available = self.adapter.engram_available and getattr(self.adapter, 'vector_search_available', False)
     
-    async def add(self, messages: List[Dict[str, str]], user_id: str = "default") -> bool:
+    async def initialize(self):
+        """Initialize the memory service and register with Engram."""
+        # Register with Engram if it's running
+        from ergon.core.memory.services.client import client_manager
+        
+        try:
+            await client_manager.start()
+            
+            # Check if Engram is running
+            engram_info = None
+            with client_manager.lock:
+                for client_id, info in client_manager.active_clients.items():
+                    if info.get("type") == "engram":
+                        engram_info = await client_manager.get_client_info(client_id)
+                        break
+            
+            if engram_info:
+                # Register this memory service's agent with Engram
+                client_id = f"ergon_agent_{self.agent_id}"
+                
+                # Check if already registered
+                existing_client = await client_manager.get_client_info(client_id)
+                if not existing_client:
+                    await client_manager.register_client(
+                        client_id=client_id,
+                        client_type="ergon_agent",
+                        config={
+                            "agent_id": self.agent_id,
+                            "agent_name": self.agent_name
+                        }
+                    )
+                    
+                    logger.info(f"Registered agent {self.agent_id} ({self.agent_name}) with Engram")
+        except Exception as e:
+            logger.warning(f"Could not register with Engram: {e}")
+            logger.warning("Memory will work locally, but won't be integrated with Engram")
+            
+        # Initialize vector store connection if needed
+        # Nothing to do currently as vector store is initialized in constructor
+    
+    async def add_memory(self, 
+                       content: str, 
+                       category: str = None, 
+                       importance: int = None,
+                       metadata: Dict[str, Any] = None) -> str:
         """
-        Add a conversation to memory.
+        Add a memory to storage.
         
         Args:
-            messages: List of message objects with 'role' and 'content'
-            user_id: User identifier for memory separation
+            content: Memory content text
+            category: Memory category (auto-detected if not provided)
+            importance: Importance score (1-5, auto-assigned if not provided)
+            metadata: Additional metadata
             
         Returns:
-            True if successful, False otherwise
+            Memory ID
         """
-        try:
-            # Use the Engram adapter to add memory
-            return await self.adapter.add(messages, user_id)
-        except Exception as e:
-            logger.error(f"Error adding memory: {str(e)}")
-            return False
+        # Auto-categorize if needed
+        if not category or not importance:
+            auto_category, auto_importance = MemoryCategory.categorize(content)
+            category = category or auto_category
+            importance = importance or auto_importance
+        
+        # Validate importance is in range 1-5
+        importance = max(1, min(5, importance))
+        
+        # Create metadata
+        memory_metadata = metadata or {}
+        memory_metadata.update({
+            "agent_id": self.agent_id,
+            "category": category,
+            "importance": importance,
+            "timestamp": int(time.time())
+        })
+        
+        # Generate embedding
+        embedding = await embedding_service.embed_text(content)
+        
+        # Store in vector database
+        memory_id = await self.vector_store.add_memory(
+            content=content,
+            embedding=embedding,
+            metadata=memory_metadata
+        )
+        
+        # Store metadata in SQL database
+        with get_db_session() as db:
+            memory = Memory(
+                id=memory_id,
+                agent_id=self.agent_id,
+                content=content,
+                category=category,
+                importance=importance,
+                metadata=memory_metadata
+            )
+            db.add(memory)
+            db.commit()
+        
+        logger.debug(f"Added memory {memory_id} for agent {self.agent_id} with category {category}")
+        return memory_id
     
-    async def search(self, query: str, user_id: str = "default", limit: int = 5) -> Dict[str, Any]:
+    async def search(self, 
+                   query: str, 
+                   categories: List[str] = None, 
+                   min_importance: int = 1,
+                   limit: int = 5) -> List[Dict[str, Any]]:
         """
-        Search memories by relevance to query.
+        Search for relevant memories.
         
         Args:
             query: The search query
-            user_id: User identifier for memory separation
-            limit: Maximum number of results to return
+            categories: Optional list of categories to search in
+            min_importance: Minimum importance score
+            limit: Maximum number of results
             
         Returns:
-            Dictionary with search results
+            List of matching memories
         """
-        try:
-            # Use the Engram adapter to search
-            return await self.adapter.search(query, user_id, limit)
-        except Exception as e:
-            logger.error(f"Error searching memories: {str(e)}")
-            return {"results": []}
+        # Generate query embedding
+        query_embedding = await embedding_service.embed_text(query)
+        
+        # Build metadata filter
+        filter_dict = {}
+        if categories:
+            filter_dict["category"] = categories  # The vector store will handle this as $in
+        if min_importance:
+            filter_dict["importance"] = {"gte": min_importance}
+        
+        # Search vector database
+        results = await self.vector_store.search(
+            query_embedding=query_embedding,
+            filter_dict=filter_dict,
+            limit=limit
+        )
+        
+        # Format results
+        formatted_results = []
+        for result in results:
+            formatted_results.append({
+                "id": result["id"],
+                "content": result["content"],
+                "category": result["metadata"].get("category", "unknown"),
+                "importance": result["metadata"].get("importance", 3),
+                "score": result["score"],
+                "created_at": datetime.fromtimestamp(result["metadata"].get("timestamp", 0))
+            })
+        
+        return formatted_results
     
-    async def get_relevant_context(
-        self, 
-        query: str, 
-        user_id: str = "default", 
-        limit: int = 3
-    ) -> str:
+    async def get_by_category(self, 
+                           category: str, 
+                           limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Get memories by category.
+        
+        Args:
+            category: Memory category to retrieve
+            limit: Maximum number of results
+            
+        Returns:
+            List of memories
+        """
+        results = await self.vector_store.get_by_category(
+            category=category,
+            limit=limit
+        )
+        
+        # Format results
+        formatted_results = []
+        for result in results:
+            formatted_results.append({
+                "id": result["id"],
+                "content": result["content"],
+                "category": result["metadata"].get("category", "unknown"),
+                "importance": result["metadata"].get("importance", 3),
+                "created_at": datetime.fromtimestamp(result["metadata"].get("timestamp", 0))
+            })
+        
+        return formatted_results
+    
+    async def get_recent(self, 
+                       categories: List[str] = None,
+                       min_importance: int = None,
+                       limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Get most recent memories.
+        
+        Args:
+            categories: Optional list of categories to filter by
+            min_importance: Optional minimum importance to filter by
+            limit: Maximum number of results
+            
+        Returns:
+            List of memories
+        """
+        results = await self.vector_store.get_recent(limit=limit * 2)  # Get more for filtering
+        
+        # Apply filters
+        filtered_results = []
+        for result in results:
+            metadata = result.get("metadata", {})
+            
+            # Filter by category if specified
+            if categories and metadata.get("category") not in categories:
+                continue
+                
+            # Filter by importance if specified
+            if min_importance and metadata.get("importance", 0) < min_importance:
+                continue
+                
+            filtered_results.append(result)
+        
+        # Format and limit results
+        formatted_results = []
+        for result in filtered_results[:limit]:
+            formatted_results.append({
+                "id": result["id"],
+                "content": result["content"],
+                "category": result["metadata"].get("category", "unknown"),
+                "importance": result["metadata"].get("importance", 3),
+                "created_at": datetime.fromtimestamp(result["metadata"].get("timestamp", 0))
+            })
+        
+        return formatted_results
+    
+    async def get_relevant_context(self, 
+                                query: str, 
+                                categories: List[str] = None,
+                                min_importance: int = 2,
+                                limit: int = 3) -> str:
         """
         Get relevant context from memories formatted for prompt enhancement.
         
         Args:
             query: The query to find relevant memories for
-            user_id: User identifier for memory separation
+            categories: Optional list of categories to search in
+            min_importance: Minimum importance score
             limit: Maximum number of memories to include
             
         Returns:
             Formatted string with relevant memories for context
         """
-        try:
-            # Use the Engram adapter to get relevant context
-            return await self.adapter.get_relevant_context(query, user_id, limit)
-        except Exception as e:
-            logger.error(f"Error getting relevant context: {str(e)}")
+        # Search for relevant memories
+        memories = await self.search(
+            query=query,
+            categories=categories,
+            min_importance=min_importance,
+            limit=limit
+        )
+        
+        if not memories:
             return ""
+        
+        # Format memories as context
+        context = "Here are some relevant memories that might help with your response:\n\n"
+        
+        for i, memory in enumerate(memories):
+            category = memory["category"].capitalize()
+            importance = "★" * memory["importance"]
+            context += f"{i+1}. [{category}] {memory['content']} ({importance})\n\n"
+        
+        return context
     
-    async def clear(self, user_id: str = "default") -> bool:
+    async def delete_memory(self, memory_id: str) -> bool:
         """
-        Clear all memories for a user.
+        Delete a memory.
         
         Args:
-            user_id: User identifier for memory separation
+            memory_id: ID of the memory to delete
             
         Returns:
-            True if successful, False otherwise
+            True if successful
         """
-        try:
-            # Use the Engram adapter to clear memories
-            return await self.adapter.clear(user_id)
-        except Exception as e:
-            logger.error(f"Error clearing memories: {str(e)}")
+        # Delete from vector store
+        vector_deleted = await self.vector_store.delete([memory_id])
+        
+        # Delete from SQL database
+        with get_db_session() as db:
+            memory = db.query(Memory).filter(Memory.id == memory_id).first()
+            if memory:
+                db.delete(memory)
+                db.commit()
+                return vector_deleted
             return False
+    
+    async def clear_category(self, category: str) -> int:
+        """
+        Clear all memories in a category.
+        
+        Args:
+            category: Category to clear
             
-    def close(self) -> bool:
+        Returns:
+            Number of memories deleted
+        """
+        # Get all memories in this category
+        memories = await self.get_by_category(category=category, limit=1000)
+        memory_ids = [memory["id"] for memory in memories]
+        
+        # Delete from vector store
+        await self.vector_store.delete(memory_ids)
+        
+        # Delete from SQL database
+        with get_db_session() as db:
+            deleted = db.query(Memory).filter(
+                Memory.agent_id == self.agent_id,
+                Memory.category == category
+            ).delete()
+            db.commit()
+        
+        return deleted
+    
+    async def clear_all(self) -> int:
+        """
+        Clear all memories for this agent.
+        
+        Returns:
+            Number of memories deleted
+        """
+        # Get all memories for this agent
+        results = await self.vector_store.get_recent(limit=10000)  # Large limit to get all
+        memory_ids = [result["id"] for result in results]
+        
+        # Delete from vector store
+        await self.vector_store.delete(memory_ids)
+        
+        # Delete from SQL database
+        with get_db_session() as db:
+            deleted = db.query(Memory).filter(
+                Memory.agent_id == self.agent_id
+            ).delete()
+            db.commit()
+        
+        return deleted
+    
+    async def close(self) -> bool:
         """
         Close the memory service and clean up resources.
         
         Returns:
-            True if successful, False otherwise
+            True if successful
         """
+        # Deregister from Engram if registered
         try:
-            # Close the adapter to clean up resources
-            return self.adapter.close()
+            from ergon.core.memory.services.client import client_manager
+            
+            # Check if registered with Engram
+            client_id = f"ergon_agent_{self.agent_id}"
+            client_info = await client_manager.get_client_info(client_id)
+            
+            if client_info:
+                # Deregister from Engram
+                success = await client_manager.deregister_client(client_id)
+                if success:
+                    logger.info(f"Deregistered agent {self.agent_id} ({self.agent_name}) from Engram")
+                else:
+                    logger.warning(f"Failed to deregister agent {self.agent_id} from Engram")
         except Exception as e:
-            logger.error(f"Error closing memory service: {str(e)}")
-            return False
+            logger.warning(f"Error during deregistration from Engram: {e}")
+        
+        return True

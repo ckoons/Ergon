@@ -849,9 +849,20 @@ If you don't need to use a tool, respond with your regular text answer."""
             async for chunk in self.llm_client.acomplete_stream(messages):
                 yield chunk
     
-    def cleanup(self):
+    async def cleanup(self):
         """Clean up agent resources."""
+        # Close any memory services or other resources
+        if HAS_MEMORY and hasattr(self.agent, 'id'):
+            try:
+                from ergon.core.memory.service import MemoryService
+                memory_service = MemoryService(self.agent.id)
+                await memory_service.close()
+                logger.info(f"Closed memory service for agent {self.agent.id}")
+            except Exception as e:
+                logger.warning(f"Error closing memory service: {e}")
+        
         # Remove temporary directory
         if hasattr(self, 'working_dir') and os.path.exists(self.working_dir):
             import shutil
             shutil.rmtree(self.working_dir)
+            logger.info(f"Removed working directory: {self.working_dir}")

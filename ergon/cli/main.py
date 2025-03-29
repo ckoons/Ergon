@@ -25,6 +25,7 @@ from ergon.cli.commands.docs import app as docs_app
 from ergon.cli.commands.tools import app as tools_app
 from ergon.cli.commands.db import app as db_app
 from ergon.cli.commands.system import app as system_app
+from ergon.cli.commands.memory import memory_app
 
 # Initialize console for rich output
 console = Console()
@@ -42,6 +43,7 @@ app.add_typer(docs_app, name="docs", help="Documentation system commands")
 app.add_typer(tools_app, name="tools", help="Tool generation commands")
 app.add_typer(db_app, name="db", help="Database management commands")
 app.add_typer(system_app, name="system", help="System information and management")
+app.add_typer(memory_app, name="memory", help="Memory management commands")
 
 
 def version_callback(value: bool):

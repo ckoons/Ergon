@@ -284,7 +284,7 @@ The Nexus interface provides several ways to work with agents:
 
 #### Memory-Enabled Experience
 
-Ergon's Nexus features enhanced memory capabilities through integration with Engram (formerly ClaudeMemoryBridge):
+Ergon's Nexus features enhanced memory capabilities through its integrated memory system:
 
 ```bash
 # Create a new memory-enabled Nexus agent
@@ -308,7 +308,70 @@ The Nexus memory system offers:
 - **Auto-categorization**: Content is automatically analyzed to determine category and importance
 - **Rich Storage & Retrieval**: Optimized memory storage with tagging and metadata
 
-The system works automatically when Engram is installed, but gracefully falls back to local file-based storage when unavailable. If you're migrating from ClaudeMemoryBridge to Engram, see our [migration guide](MIGRATION.md).
+### Memory System
+
+Ergon includes a powerful, hardware-optimized memory system built on Tekton's shared vector database architecture. The memory system is accessible through both the CLI and the API.
+
+```bash
+# List memories for an agent
+ergon memory list "MyAgent"
+
+# Search agent memories
+ergon memory search "MyAgent" "query text" --category personal --min-importance 3
+
+# Add a new memory
+ergon memory add "MyAgent" "User prefers dark mode interfaces" --category preference --importance 4
+
+# Delete a memory
+ergon memory delete "MyAgent" memory_id --force
+
+# Clear memories in a category
+ergon memory clear "MyAgent" --category session --force
+
+# List available memory categories
+ergon memory categories
+```
+
+The memory system features:
+
+- **Hardware-Optimized Storage**: Automatically selects the optimal vector database implementation based on hardware (Qdrant for Apple Silicon, FAISS for NVIDIA)
+- **Structured Categories**: Organizes memories into categories (personal, factual, preference, etc.)
+- **Importance Ranking**: 1-5 importance scoring for prioritization
+- **Semantic Search**: Fast vector-based retrieval of relevant memories
+- **Auto-Categorization**: Automatic detection of appropriate categories and importance levels
+- **Shared Database Architecture**: Uses Tekton's shared database approach for optimal performance across components
+
+The memory system is accessible from your own code via the Ergon API:
+
+```python
+from ergon.core.memory import MemoryService, RAGService
+
+# Initialize memory service
+memory_service = MemoryService(agent_id=42)
+await memory_service.initialize()
+
+# Store a memory
+memory_id = await memory_service.add_memory(
+    content="User prefers dark mode interfaces",
+    category="preference",
+    importance=4
+)
+
+# Retrieve relevant memories
+context = await memory_service.get_relevant_context(
+    query="What UI theme does the user prefer?",
+    min_importance=3
+)
+
+# Use the RAG service to enhance prompts
+rag = RAGService(agent_id=42)
+enhanced_prompt = await rag.augment_prompt(
+    system_prompt="You are a helpful assistant.",
+    user_query="What theme should I use?"
+)
+```
+
+The system works automatically when properly configured, providing a consistent experience across all Ergon components.
 
 #### Special Commands
 
