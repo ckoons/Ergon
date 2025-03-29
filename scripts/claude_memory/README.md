@@ -8,7 +8,7 @@ The Claude Memory Bridge provides Claude with persistent memory across conversat
 
 This tool has been moved to its own repository to:
 
-1. Allow it to be used independently of Agenteer
+1. Allow it to be used independently of Ergon
 2. Provide more focused development and versioning
 3. Enable easier integration with other projects
 

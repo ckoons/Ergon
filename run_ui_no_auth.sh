@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set environment variables
-export AGENTEER_AUTHENTICATION=false
+export ERGON_AUTHENTICATION=false
 
 # Activate virtual environment
 source venv/bin/activate

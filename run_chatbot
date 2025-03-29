@@ -1,8 +1,8 @@
 #!/bin/bash
-# Script to run the Agenteer chatbot interface with PyTorch warnings suppressed
+# Script to run the Ergon chatbot interface with PyTorch warnings suppressed
 
 # Show what's happening to the user
-echo "=== Starting Agenteer Nexus Interface ==="
+echo "=== Starting Ergon Nexus Interface ==="
 echo "=== Log begins ==="
 
 # Free up port 8501 if it's in use
@@ -28,7 +28,7 @@ else
 fi
 
 # Set environment variables to disable authentication for easier testing
-export AGENTEER_AUTHENTICATION=false
+export ERGON_AUTHENTICATION=false
 
 # To see all Streamlit logs for debugging
 export STREAMLIT_LOG_LEVEL=debug

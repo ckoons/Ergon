@@ -1,6 +1,6 @@
-# Agenteer Pre-built Agents
+# Ergon Pre-built Agents
 
-This document describes the pre-built agents available in Agenteer along with their metadata. This information is used by Nexus to provide intelligent agent recommendations and descriptions.
+This document describes the pre-built agents available in Ergon along with their metadata. This information is used by Nexus to provide intelligent agent recommendations and descriptions.
 
 ## Agent Type Metadata
 
@@ -203,23 +203,23 @@ Each agent type has standard metadata that helps Nexus understand its capabiliti
 
 ## Creating Pre-built Agents
 
-To streamline the onboarding experience, Agenteer can automatically create pre-built agents of each type. The following will create a set of agents with proper configuration:
+To streamline the onboarding experience, Ergon can automatically create pre-built agents of each type. The following will create a set of agents with proper configuration:
 
 ```bash
 # Create a standard agent
-agenteer create -n "GeneralAssistant" -d "General-purpose assistant for various tasks" -t standard
+ergon create -n "GeneralAssistant" -d "General-purpose assistant for various tasks" -t standard
 
 # Create a memory-enabled Nexus agent
-agenteer create -n "MemoryAssistant" -d "Memory-enabled assistant that remembers context" -t nexus
+ergon create -n "MemoryAssistant" -d "Memory-enabled assistant that remembers context" -t nexus
 
 # Create a GitHub agent
-agenteer create -n "GitHubAssistant" -d "GitHub repository management and code assistant" -t github
+ergon create -n "GitHubAssistant" -d "GitHub repository management and code assistant" -t github
 
 # Create a Mail agent
-agenteer create -n "MailAssistant" -d "Email management assistant for Gmail and Outlook" -t mail
+ergon create -n "MailAssistant" -d "Email management assistant for Gmail and Outlook" -t mail
 
 # Create a Browser agent
-agenteer create -n "WebBrowser" -d "Web browsing assistant for research and interaction" -t browser
+ergon create -n "WebBrowser" -d "Web browsing assistant for research and interaction" -t browser
 ```
 
 This set of agents provides a comprehensive starting point for new users, covering the most common use cases.

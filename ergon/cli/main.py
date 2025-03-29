@@ -16,9 +16,15 @@ from pathlib import Path
 
 from ergon.utils.config.settings import settings
 from ergon.core.database.engine import init_db
+from ergon.core.database.models import Agent as DatabaseAgent, DocumentationPage
 
 # Import commands
 from ergon.cli.commands.nexus import nexus_command
+from ergon.cli.commands.repository import app as repo_app
+from ergon.cli.commands.docs import app as docs_app
+from ergon.cli.commands.tools import app as tools_app
+from ergon.cli.commands.db import app as db_app
+from ergon.cli.commands.system import app as system_app
 
 # Initialize console for rich output
 console = Console()
@@ -26,9 +32,16 @@ console = Console()
 # Create Typer app
 app = typer.Typer(
     name="ergon",
-    help="Ergon: AI agent builder with minimal configuration",
+    help="Ergon: Intelligent Tool, Agent, and Workflow Manager",
     add_completion=False,
 )
+
+# Add subcommands
+app.add_typer(repo_app, name="repo", help="Repository management commands")
+app.add_typer(docs_app, name="docs", help="Documentation system commands")
+app.add_typer(tools_app, name="tools", help="Tool generation commands")
+app.add_typer(db_app, name="db", help="Database management commands")
+app.add_typer(system_app, name="system", help="System information and management")
 
 
 def version_callback(value: bool):
@@ -45,7 +58,7 @@ def main(
         False, "--version", "-v", callback=version_callback, help="Show version information."
     ),
 ):
-    """Ergon CLI: Build and run AI agents with minimal configuration."""
+    """Ergon CLI: Intelligent Tool, Agent, and Workflow Manager."""
     # Check if authenticated
     try:
         from ergon.utils.config.credentials import credential_manager
@@ -141,7 +154,7 @@ def create(
     try:
         from ergon.core.agents.generator import AgentGenerator, generate_agent
         from ergon.core.database.engine import get_db_session
-        from ergon.core.database.models import Agent, AgentFile, AgentTool
+        from ergon.core.database.models import Agent as DatabaseAgent, AgentFile, AgentTool
         
         # Initialize database if not exists
         if not os.path.exists(settings.database_url.replace("sqlite:///", "")):
@@ -184,7 +197,7 @@ def create(
             
             # Save agent to database
             with get_db_session() as db:
-                agent = Agent(
+                agent = DatabaseAgent(
                     name=agent_data["name"],
                     description=agent_data["description"],
                     model_name=model,
@@ -273,7 +286,7 @@ def list_agents():
     """List all available agents."""
     try:
         from ergon.core.database.engine import get_db_session
-        from ergon.core.database.models import Agent
+        from ergon.core.database.models import Agent as DatabaseAgent
         
         # Initialize database if not exists
         if not os.path.exists(settings.database_url.replace("sqlite:///", "")):
@@ -282,7 +295,7 @@ def list_agents():
         
         # List agents
         with get_db_session() as db:
-            agents = db.query(Agent).all()
+            agents = db.query(DatabaseAgent).all()
             
             if not agents:
                 console.print("[yellow]No agents found. Create one with 'ergon create'.[/yellow]")
@@ -323,7 +336,7 @@ def run_agent(
     try:
         from ergon.core.agents.runner import AgentRunner
         from ergon.core.database.engine import get_db_session
-        from ergon.core.database.models import Agent, AgentExecution, AgentMessage
+        from ergon.core.database.models import Agent as DatabaseAgent, AgentExecution, AgentMessage
         
         # Initialize database if not exists
         if not os.path.exists(settings.database_url.replace("sqlite:///", "")):
@@ -335,21 +348,21 @@ def run_agent(
             # Check if identifier is an integer (likely an ID)
             try:
                 agent_id = int(agent_identifier)
-                agent = db.query(Agent).filter(Agent.id == agent_id).first()
+                agent = db.query(DatabaseAgent).filter(DatabaseAgent.id == agent_id).first()
                 if agent:
                     identifier_type = "ID"
                 else:
                     # Fallback to name search if ID not found
-                    agent = db.query(Agent).filter(Agent.name == agent_identifier).first()
+                    agent = db.query(DatabaseAgent).filter(DatabaseAgent.name == agent_identifier).first()
                     identifier_type = "name"
             except ValueError:
                 # Not an integer, so search by name
-                agent = db.query(Agent).filter(Agent.name == agent_identifier).first()
+                agent = db.query(DatabaseAgent).filter(DatabaseAgent.name == agent_identifier).first()
                 identifier_type = "name"
             
             if not agent:
                 # If still not found, try a case-insensitive partial match on name
-                agent = db.query(Agent).filter(Agent.name.ilike(f"%{agent_identifier}%")).first()
+                agent = db.query(DatabaseAgent).filter(DatabaseAgent.name.ilike(f"%{agent_identifier}%")).first()
                 
                 if agent:
                     console.print(f"[yellow]Agent with exact {identifier_type} '{agent_identifier}' not found, but found matching agent '{agent.name}'.[/yellow]")
@@ -357,7 +370,7 @@ def run_agent(
                     console.print(f"[bold red]Agent with {identifier_type} '{agent_identifier}' not found.[/bold red]")
                     
                     # Provide helpful suggestions
-                    agents = db.query(Agent).all()
+                    agents = db.query(DatabaseAgent).all()
                     if agents:
                         console.print("[yellow]Available agents:[/yellow]")
                         for a in agents:
@@ -588,21 +601,21 @@ def delete_agent(
             # Check if identifier is an integer (likely an ID)
             try:
                 agent_id = int(agent_identifier)
-                agent = db.query(Agent).filter(Agent.id == agent_id).first()
+                agent = db.query(DatabaseAgent).filter(DatabaseAgent.id == agent_id).first()
                 if agent:
                     identifier_type = "ID"
                 else:
                     # Fallback to name search if ID not found
-                    agent = db.query(Agent).filter(Agent.name == agent_identifier).first()
+                    agent = db.query(DatabaseAgent).filter(DatabaseAgent.name == agent_identifier).first()
                     identifier_type = "name"
             except ValueError:
                 # Not an integer, so search by name
-                agent = db.query(Agent).filter(Agent.name == agent_identifier).first()
+                agent = db.query(DatabaseAgent).filter(DatabaseAgent.name == agent_identifier).first()
                 identifier_type = "name"
             
             if not agent:
                 # If still not found, try a case-insensitive partial match on name
-                agent = db.query(Agent).filter(Agent.name.ilike(f"%{agent_identifier}%")).first()
+                agent = db.query(DatabaseAgent).filter(DatabaseAgent.name.ilike(f"%{agent_identifier}%")).first()
                 
                 if agent:
                     console.print(f"[yellow]Agent with exact {identifier_type} '{agent_identifier}' not found, but found matching agent '{agent.name}'.[/yellow]")
@@ -610,7 +623,7 @@ def delete_agent(
                     console.print(f"[bold red]Agent with {identifier_type} '{agent_identifier}' not found.[/bold red]")
                     
                     # Provide helpful suggestions
-                    agents = db.query(Agent).all()
+                    agents = db.query(DatabaseAgent).all()
                     if agents:
                         console.print("[yellow]Available agents:[/yellow]")
                         for a in agents:
@@ -653,7 +666,7 @@ def delete_agent(
                 db.query(AgentFile).filter(AgentFile.agent_id == agent_id).delete(synchronize_session=False)
                 
                 # Finally delete the agent
-                db.query(Agent).filter(Agent.id == agent_id).delete(synchronize_session=False)
+                db.query(DatabaseAgent).filter(DatabaseAgent.id == agent_id).delete(synchronize_session=False)
                 
                 # Commit changes
                 db.commit()
@@ -683,7 +696,7 @@ def login(
         
         # Check if authentication is required
         if not settings.require_authentication:
-            console.print("[yellow]Authentication is disabled via AGENTEER_AUTHENTICATION=false.[/yellow]")
+            console.print("[yellow]Authentication is disabled via ERGON_AUTHENTICATION=false.[/yellow]")
             console.print("[green]You are automatically logged in as admin@example.com[/green]")
             return
             
@@ -722,6 +735,7 @@ def login(
         console.print(f"[bold red]Error during login: {str(e)}[/bold red]")
         raise typer.Exit(1)
 
+
 def register_new_user(email=None):
     """Helper function to register a new user."""
     from ergon.utils.config.credentials import credential_manager
@@ -755,6 +769,7 @@ def register_new_user(email=None):
     else:
         console.print("[bold red]Registration failed. User may already exist.[/bold red]")
         return False
+
 
 @app.command("status")
 def status():
@@ -825,16 +840,56 @@ def status():
         # Agent count
         if db_initialized:
             with get_db_session() as db:
-                agent_count = db.query(Agent).count()
+                agent_count = db.query(DatabaseAgent).count()
                 doc_count = db.query(DocumentationPage).count()
                 
                 table.add_row("Agents", "✓" if agent_count > 0 else "✗", f"{agent_count} agent(s) available")
                 table.add_row("Documentation", "✓" if doc_count > 0 else "✗", f"{doc_count} page(s) available")
+                
+                # Check for new repository features
+                try:
+                    from ergon.core.repository.models import Component
+                    component_count = db.query(Component).count()
+                    table.add_row("Repository", "✓" if component_count > 0 else "✓", f"{component_count} component(s) available")
+                except:
+                    table.add_row("Repository", "✗", "Repository tables not initialized")
+                
+                # Check for vector database
+                try:
+                    from ergon.core.docs.document_store import document_store
+                    vector_count = document_store.vector_store.count_documents()
+                    
+                    # Check hardware detection and vector store type
+                    from tekton.core.vector_store import detect_hardware, HardwareType
+                    hardware = detect_hardware()
+                    hardware_name = {
+                        HardwareType.APPLE_SILICON: "Apple Silicon",
+                        HardwareType.NVIDIA: "NVIDIA GPU",
+                        HardwareType.OTHER: "Generic CPU"
+                    }.get(hardware, "Unknown")
+                    
+                    vector_store_type = type(document_store.vector_store).__name__
+                    table.add_row("Vector Store", "✓", f"{vector_count} vector(s) - {vector_store_type} on {hardware_name}")
+                except Exception as vs_error:
+                    table.add_row("Vector Store", "✗", f"Error: {str(vs_error)}")
+                
+                # Check for migrations
+                try:
+                    from ergon.core.database.migrations import migration_manager
+                    current_revision = migration_manager.get_current_revision()
+                    if current_revision and current_revision != "None" and current_revision != "Unknown":
+                        table.add_row("Migrations", "✓", f"Current revision: {current_revision}")
+                    else:
+                        table.add_row("Migrations", "✗", "Migrations not initialized")
+                except:
+                    table.add_row("Migrations", "✗", "Migrations system not available")
         
         console.print(table)
         
     except Exception as e:
         console.print(f"[bold red]Error checking status: {str(e)}[/bold red]")
+        import traceback
+        console.print(traceback.format_exc())
         raise typer.Exit(1)
 
 
@@ -868,13 +923,13 @@ def run_flow(
                     # Try by ID first, then name
                     try:
                         agent_id = int(agent_name)
-                        agent = db.query(Agent).filter(Agent.id == agent_id).first()
+                        agent = db.query(DatabaseAgent).filter(DatabaseAgent.id == agent_id).first()
                     except ValueError:
-                        agent = db.query(Agent).filter(Agent.name == agent_name).first()
+                        agent = db.query(DatabaseAgent).filter(DatabaseAgent.name == agent_name).first()
                         
                     if not agent:
                         # Try partial name match
-                        agent = db.query(Agent).filter(Agent.name.ilike(f"%{agent_name}%")).first()
+                        agent = db.query(DatabaseAgent).filter(DatabaseAgent.name.ilike(f"%{agent_name}%")).first()
                         
                     if agent:
                         # Create agent runner
@@ -884,7 +939,7 @@ def run_flow(
                         console.print(f"[bold red]Agent '{agent_name}' not found.[/bold red]")
             else:
                 # No agents specified, get all agents
-                all_agents = db.query(Agent).all()
+                all_agents = db.query(DatabaseAgent).all()
                 if all_agents:
                     for agent in all_agents:
                         runner = AgentRunner(agent=agent, timeout=timeout)

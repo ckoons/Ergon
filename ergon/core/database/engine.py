@@ -10,6 +10,8 @@ from typing import Generator, Any
 import os
 
 from ergon.utils.config.settings import settings
+
+# Import Base from models to avoid circular imports
 from ergon.core.database.models import Base
 
 # Create engine
@@ -49,6 +51,10 @@ def init_db() -> None:
     if settings.database_url.startswith("sqlite"):
         db_path = settings.database_url.replace("sqlite:///", "")
         os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
+    
+    # Make sure all models are registered
+    # Import all models to ensure they're registered with Base
+    from ergon.core.database.models import Agent, AgentTool, AgentFile, AgentExecution, AgentMessage, DocumentationPage
     
     # Create all tables
     Base.metadata.create_all(bind=engine)

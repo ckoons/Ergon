@@ -8,7 +8,7 @@ import os
 from datetime import datetime
 from ..utils.session import debug, navigate_to
 
-# Import agenteer modules
+# Import Ergon modules
 from ergon.core.database.engine import get_db_session
 from ergon.core.database.models import Agent, AgentTool
 from ergon.core.agents.generator import generate_agent

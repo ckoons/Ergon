@@ -41,7 +41,7 @@ agenteer ui
 ./run_chatbot
 
 # Or use the CLI
-agenteer create -n "my_agent" -d "A weather agent that fetches forecast data"
+ergon create -n "my_agent" -d "A weather agent that fetches forecast data"
 ```
 
 ### Docker Installation
@@ -51,9 +51,9 @@ agenteer create -n "my_agent" -d "A weather agent that fetches forecast data"
 docker-compose up -d
 
 # Or build and run manually
-docker build --platform linux/arm64 -t agenteer .  # For Apple Silicon Macs
-docker build --platform linux/amd64 -t agenteer .  # For Intel/AMD systems
-docker run -p 8501:8501 -p 8000:8000 agenteer
+docker build --platform linux/arm64 -t ergon .  # For Apple Silicon Macs
+docker build --platform linux/amd64 -t ergon .  # For Intel/AMD systems
+docker run -p 8501:8501 -p 8000:8000 ergon
 ```
 
 > **Note for Apple Silicon Mac users**: Be sure to include the `--platform linux/arm64` flag when building and running Docker images to ensure compatibility.
@@ -68,27 +68,27 @@ Ergon offers built-in documentation preloading to enhance agent capabilities. Th
 2. **Using the CLI**:
    ```bash
    # Preload all documentation sources
-   agenteer preload-docs
+   ergon preload-docs
 
    # Preload a specific source
-   agenteer preload-docs --source pydantic
-   agenteer preload-docs --source langchain
-   agenteer preload-docs --source langgraph
-   agenteer preload-docs --source anthropic
+   ergon preload-docs --source pydantic
+   ergon preload-docs --source langchain
+   ergon preload-docs --source langgraph
+   ergon preload-docs --source anthropic
 
    # Customize crawling settings
-   agenteer preload-docs --max-pages 500 --max-depth 4 --timeout 300
+   ergon preload-docs --max-pages 500 --max-depth 4 --timeout 300
    ```
 
 3. **With Docker**:
    ```bash
    # Preload all documentation sources
-   docker run --platform linux/arm64 agenteer preload-docs  # For Apple Silicon Macs
-   docker run --platform linux/amd64 agenteer preload-docs  # For Intel/AMD systems
+   docker run --platform linux/arm64 ergon preload-docs  # For Apple Silicon Macs
+   docker run --platform linux/amd64 ergon preload-docs  # For Intel/AMD systems
 
    # Preload a specific source
-   docker run --platform linux/arm64 agenteer preload-docs --source langchain  # For Apple Silicon
-   docker run --platform linux/arm64 agenteer preload-docs --source langgraph  # For Apple Silicon
+   docker run --platform linux/arm64 ergon preload-docs --source langchain  # For Apple Silicon
+   docker run --platform linux/arm64 ergon preload-docs --source langgraph  # For Apple Silicon
    ```
 
 The preloaded documentation enables agents to leverage knowledge from these frameworks when responding to queries, making them more effective for framework-specific tasks.
@@ -134,19 +134,19 @@ Values in earlier files override those in later files. All files are loaded, cre
 
 ### Authentication Configuration
 
-Ergon includes a configurable authentication system controlled via the `AGENTEER_AUTHENTICATION` environment variable:
+Ergon includes a configurable authentication system controlled via the `ERGON_AUTHENTICATION` environment variable:
 
-- `AGENTEER_AUTHENTICATION=true` (default): User authentication is required
-- `AGENTEER_AUTHENTICATION=false`: Authentication is bypassed (useful for testing)
+- `ERGON_AUTHENTICATION=true` (default): User authentication is required
+- `ERGON_AUTHENTICATION=false`: Authentication is bypassed (useful for testing)
 
 You can set this variable in any of the environment files or on the command line:
 
 ```bash
 # Run with authentication disabled
-AGENTEER_AUTHENTICATION=false agenteer ui
+ERGON_AUTHENTICATION=false ergon ui
 
 # Run tests without authentication prompts
-AGENTEER_AUTHENTICATION=false pytest tests/
+ERGON_AUTHENTICATION=false pytest tests/
 ```
 
 Example configuration:
@@ -163,7 +163,7 @@ USE_LOCAL_MODELS=false
 EMBEDDING_MODEL="sentence-transformers/all-MiniLM-L6-v2"
 
 # Authentication settings
-AGENTEER_AUTHENTICATION=true  # Set to false to disable authentication
+ERGON_AUTHENTICATION=true  # Set to false to disable authentication
 
 # Application settings
 LOG_LEVEL="INFO"
@@ -178,13 +178,13 @@ Ergon provides a unified interface for creating, running, and managing AI agents
 
 ```bash
 # Create a standard agent
-agenteer create -n "MyAgent" -d "Description of the agent" -t standard
+ergon create -n "MyAgent" -d "Description of the agent" -t standard
 
 # Create a GitHub agent
-agenteer create -n "GitHubAgent" -d "GitHub repository manager" -t github
+ergon create -n "GitHubAgent" -d "GitHub repository manager" -t github
 
 # Create a Mail agent
-agenteer create -n "MailAgent" -d "Email management assistant" -t mail
+ergon create -n "MailAgent" -d "Email management assistant" -t mail
 ```
 
 ### Running Agents
@@ -193,22 +193,22 @@ There are several ways to run your agents:
 
 ```bash
 # List available agents
-agenteer list
+ergon list
 
 # Run an agent by ID
-agenteer run 3 -i "Your input here"
+ergon run 3 -i "Your input here"
 
 # Run an agent by name (more human-friendly)
-agenteer run "MyAgent" -i "Your input here"
+ergon run "MyAgent" -i "Your input here"
 
 # Run an agent in interactive mode (conversation)
-agenteer run "MyAgent" --interactive
+ergon run "MyAgent" --interactive
 
 # Run an agent with a timeout (30 seconds)
-agenteer run "GitHubAgent" -i "Your input here" --timeout 30
+ergon run "GitHubAgent" -i "Your input here" --timeout 30
 
 # Set timeout action (log, alarm, or kill)
-agenteer run "MailAgent" -i "Your input here" --timeout 30 --timeout-action alarm
+ergon run "MailAgent" -i "Your input here" --timeout 30 --timeout-action alarm
 ```
 
 ### Agent Timeout Management
@@ -234,13 +234,13 @@ Ergon provides built-in timeout functionality to monitor and control agent execu
 
 ```bash
 # Set a 30-second timeout with default "log" action
-agenteer run "ResearchAgent" -i "Research quantum computing" --timeout 30
+ergon run "ResearchAgent" -i "Research quantum computing" --timeout 30
 
 # Use "alarm" action to get a more noticeable timeout warning
-agenteer run "DataAgent" -i "Analyze this dataset" --timeout 60 --timeout-action alarm
+ergon run "DataAgent" -i "Analyze this dataset" --timeout 60 --timeout-action alarm
 
 # Use "kill" action to forcibly terminate long-running operations
-agenteer run "ComplexAgent" -i "Complex task" --timeout 120 --timeout-action kill
+ergon run "ComplexAgent" -i "Complex task" --timeout 120 --timeout-action kill
 ```
 
 ### Managing Agents
@@ -249,16 +249,16 @@ You can manage your agents with the following commands:
 
 ```bash
 # List all agents
-agenteer list
+ergon list
 
 # Delete an agent by ID (with confirmation prompt)
-agenteer delete 3
+ergon delete 3
 
 # Delete an agent by name (with confirmation prompt)
-agenteer delete "TestAgent"
+ergon delete "TestAgent"
 
 # Force delete an agent without confirmation
-agenteer delete "MyAgent" --force
+ergon delete "MyAgent" --force
 ```
 
 ### Using the Nexus Interface
@@ -270,7 +270,7 @@ You can launch the Nexus interface to interact with your agents in an intuitive,
 ./run_chatbot
 
 # Or use the standard command
-agenteer ui
+ergon ui
 ```
 
 The Nexus interface provides several ways to work with agents:
@@ -288,16 +288,16 @@ Ergon's Nexus features enhanced memory capabilities through integration with Eng
 
 ```bash
 # Create a new memory-enabled Nexus agent
-agenteer create -n "MemoryAgent" -d "Agent with enhanced memory capabilities" -t nexus
+ergon create -n "MemoryAgent" -d "Agent with enhanced memory capabilities" -t nexus
 
 # Chat with the memory agent in interactive mode
-agenteer nexus "MemoryAgent" --interactive
+ergon nexus "MemoryAgent" --interactive
 
 # Single request with memory
-agenteer nexus "MemoryAgent" -i "Hello, do you remember me?"
+ergon nexus "MemoryAgent" -i "Hello, do you remember me?"
 
 # Disable memory for a specific interaction
-agenteer nexus "MemoryAgent" -i "This is a private question" --no-memory
+ergon nexus "MemoryAgent" -i "This is a private question" --no-memory
 ```
 
 The Nexus memory system offers:

@@ -48,7 +48,7 @@ def main():
         st.rerun()
     
     # Check authentication if enabled
-    if os.environ.get("AGENTEER_AUTHENTICATION", "true").lower() == "true":
+    if os.environ.get("ERGON_AUTHENTICATION", "true").lower() == "true":
         if not check_authentication():
             from .pages.auth import login_page
             login_page()

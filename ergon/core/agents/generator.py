@@ -12,7 +12,7 @@ import logging
 import importlib
 
 from ergon.core.database.engine import get_db_session
-from ergon.core.database.models import Agent, AgentFile, AgentTool, DocumentationPage
+from ergon.core.database.models import Agent as DatabaseAgent, AgentFile, AgentTool, DocumentationPage
 from ergon.core.vector_store.faiss_store import FAISSDocumentStore
 from ergon.core.llm.client import LLMClient
 from ergon.utils.config.settings import settings
@@ -550,6 +550,7 @@ def generate_agent(
                 "name": nexus_agent.name,
                 "description": nexus_agent.description,
                 "system_prompt": nexus_agent.system_prompt,
+                "model_name": nexus_agent.model_name,
                 "tools": tools_data,
                 "files": files_data
             }

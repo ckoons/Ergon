@@ -11,14 +11,14 @@ python-dotenv>=1.0.0
 # Or use our convenient script: ./scripts/install_engram.sh
 
 # Vector search dependencies - installed with Engram
-# These are listed here for reference but will be installed with Engram
+# Do not install directly - these will be loaded from tekton-core
+# faiss-cpu>=1.7.4
 # qdrant-client>=1.7.0
 # sentence-transformers>=2.2.2
 
 # Database
 SQLAlchemy>=2.0.0
 alembic>=1.12.0
-faiss-cpu>=1.7.4
 nltk>=3.8.1
 
 # API/Web

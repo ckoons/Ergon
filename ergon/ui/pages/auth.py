@@ -37,7 +37,7 @@ def login_page():
     # Option for demo mode
     st.markdown("---")
     if st.button("Continue without login"):
-        if os.environ.get("AGENTEER_AUTHENTICATION", "true").lower() == "false":
+        if os.environ.get("ERGON_AUTHENTICATION", "true").lower() == "false":
             st.session_state.authenticated = True
             st.session_state.username = "Guest"
             navigate_to("Home")
@@ -76,7 +76,7 @@ def register_page():
 def check_credentials(username, password):
     """Check if the credentials are valid"""
     # Demo authentication - in production, use a secure database
-    if os.environ.get("AGENTEER_AUTHENTICATION", "true").lower() == "false":
+    if os.environ.get("ERGON_AUTHENTICATION", "true").lower() == "false":
         return True
         
     # Simple credential check (replace with secure authentication in production)

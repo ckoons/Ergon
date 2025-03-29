@@ -1,6 +1,6 @@
-# Agenteer Memory and RAG System
+# Ergon Memory and RAG System
 
-This directory contains the memory management components for Agenteer, designed to provide Retrieval Augmented Generation (RAG) capabilities to agents and tools.
+This directory contains the memory management components for Ergon, designed to provide Retrieval Augmented Generation (RAG) capabilities to agents and tools.
 
 ## Overview
 
@@ -93,4 +93,4 @@ In future iterations, the memory system may evolve to:
 2. Implement more sophisticated memory reasoning capabilities
 3. Add domain-specific memory tools for specialized agents
 
-As Agenteer's agent architecture evolves, this memory system is designed to be easily integrated into the new structure.
+As Ergon's agent architecture evolves, this memory system is designed to be easily integrated into the new structure.

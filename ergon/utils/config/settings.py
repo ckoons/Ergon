@@ -1,6 +1,4 @@
-"""
-Unified configuration system for Ergon.
-"""
+"""Unified configuration system for Ergon."""
 
 from typing import Optional, Dict, Any, List
 from pathlib import Path
@@ -42,9 +40,13 @@ class Settings(BaseSettings):
     use_local_models: bool = False
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     
+    # Tekton shared settings
+    tekton_home: Path = Field(default_factory=lambda: Path.home() / ".tekton")
+    
     # Database settings
     database_url: str = "sqlite:///ergon.db"
-    vector_db_path: str = "./vector_store"
+    vector_db_path: str = Field(default_factory=lambda: str(Path.home() / ".tekton" / "vector_store"))
+    data_dir: str = Field(default_factory=lambda: str(Path.home() / ".tekton" / "data"))
     
     # Authentication settings
     require_authentication: bool = True  # Default to requiring authentication
@@ -73,22 +75,27 @@ class Settings(BaseSettings):
         """Make database URL absolute if it's a SQLite database"""
         if v.startswith('sqlite:///') and not v.startswith('sqlite:////'):
             # It's a relative path SQLite database
-            return f"sqlite:////{os.path.abspath(v.replace('sqlite:///', ''))}"
+            return f"sqlite:////{os.path.abspath(v.replace('sqlite:///', ''))}" 
         return v
     
-    @field_validator('vector_db_path')
-    def validate_vector_db_path(cls, v):
-        """Make vector db path absolute if it's relative"""
+    @field_validator('vector_db_path', 'data_dir')
+    def validate_paths(cls, v):
+        """Make paths absolute if they're relative"""
         if not os.path.isabs(v):
             return os.path.abspath(v)
         return v
         
-    @field_validator('config_path')
-    def validate_config_path(cls, v):
-        """Ensure config path exists"""
+    @field_validator('config_path', 'tekton_home')
+    def validate_config_paths(cls, v):
+        """Ensure config paths exist"""
         if not os.path.exists(v):
             os.makedirs(v, exist_ok=True)
         return v
+    
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Set environment variable for Tekton vector store path
+        os.environ["TEKTON_VECTOR_DB_PATH"] = str(self.vector_db_path)
     
     @property
     def has_openai(self) -> bool:

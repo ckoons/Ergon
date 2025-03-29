@@ -1,9 +1,9 @@
-# Agenteer Future Development Plans
+# Ergon Future Development Plans
 
 ## Completed in Sprint 1 (March 15, 2025)
 
 1. **Memory-Enabled Chat (Nexus)**
-   - Implemented Nexus as the primary interface for Agenteer
+   - Implemented Nexus as the primary interface for Ergon
    - Added intelligent agent recommendation system
    - Created comprehensive agent metadata for better matching
    - Added feedback tools for feature importance and planning

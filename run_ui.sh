@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script to run Agenteer UI with suppressed warnings
+# Script to run Ergon UI with suppressed warnings
 
 # Install watchdog if not already installed
 pip install -q watchdog

@@ -21,7 +21,7 @@ def navigate_to(page):
 def check_authentication():
     """Check if the user is authenticated"""
     # If authentication is disabled, auto-authenticate
-    if os.environ.get("AGENTEER_AUTHENTICATION", "true").lower() == "false":
+    if os.environ.get("ERGON_AUTHENTICATION", "true").lower() == "false":
         if "authenticated" not in st.session_state:
             st.session_state.authenticated = True
             st.session_state.username = "DevUser"

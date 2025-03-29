@@ -3,12 +3,13 @@ SQLAlchemy models for Ergon database.
 """
 
 from sqlalchemy import Column, Integer, String, Text, Boolean, ForeignKey, DateTime, Float
-from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 import json
 
+from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
 
 
@@ -24,7 +25,7 @@ class Agent(Base):
     
     # Agent configuration
     model_name = Column(String(255), nullable=False)
-    system_prompt = Column(Text, nullable=False)
+    system_prompt = Column(Text, nullable=True)
     
     # Relationships
     tools = relationship("AgentTool", back_populates="agent", cascade="all, delete-orphan")
