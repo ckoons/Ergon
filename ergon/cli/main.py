@@ -27,6 +27,13 @@ from ergon.cli.commands.db import app as db_app
 from ergon.cli.commands.system import app as system_app
 from ergon.cli.commands.memory import memory_app
 
+# Import latent reasoning commands if available
+try:
+    from ergon.cli.commands.latent import app as latent_app
+    HAS_LATENT_REASONING = True
+except ImportError:
+    HAS_LATENT_REASONING = False
+
 # Initialize console for rich output
 console = Console()
 
@@ -44,6 +51,10 @@ app.add_typer(tools_app, name="tools", help="Tool generation commands")
 app.add_typer(db_app, name="db", help="Database management commands")
 app.add_typer(system_app, name="system", help="System information and management")
 app.add_typer(memory_app, name="memory", help="Memory management commands")
+
+# Add latent reasoning commands if available
+if HAS_LATENT_REASONING:
+    app.add_typer(latent_app, name="latent", help="Latent reasoning commands")
 
 
 def version_callback(value: bool):
