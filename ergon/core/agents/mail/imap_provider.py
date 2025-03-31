@@ -36,19 +36,7 @@ class ImapSmtpProvider(MailProvider):
                 smtp_port: int = 587, 
                 use_ssl: bool = True,
                 smtp_use_tls: bool = True):
-        """
-        Initialize the IMAP/SMTP provider.
-        
-        Args:
-            email_address: Email address
-            password: Password or app password
-            imap_server: IMAP server address
-            imap_port: IMAP port (default: 993 for SSL)
-            smtp_server: SMTP server address (defaults to imap_server if None)
-            smtp_port: SMTP port (default: 587 for TLS)
-            use_ssl: Whether to use SSL for IMAP (default: True)
-            smtp_use_tls: Whether to use TLS for SMTP (default: True)
-        """
+        """Initialize the IMAP/SMTP provider."""
         self.email = email_address
         self.password = password
         self.imap_server = imap_server
@@ -61,14 +49,8 @@ class ImapSmtpProvider(MailProvider):
         self.authenticated = False
     
     async def authenticate(self) -> bool:
-        """
-        Authenticate with IMAP and test SMTP connection.
-        
-        Returns:
-            True if authentication successful, False otherwise
-        """
+        """Authenticate with IMAP and test SMTP connection."""
         try:
-            # Run in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(None, self._authenticate_sync)
             return result
@@ -98,7 +80,7 @@ class ImapSmtpProvider(MailProvider):
                 smtp.login(self.email, self.password)
             
             self.authenticated = True
-            logger.info(f"Successfully authenticated with {self.email} to {self.imap_server}")
+            logger.info(f"Successfully authenticated {self.email} to {self.imap_server}")
             return True
         except Exception as e:
             logger.error(f"Authentication failed: {str(e)}")
@@ -106,22 +88,12 @@ class ImapSmtpProvider(MailProvider):
             return False
     
     async def get_inbox(self, limit: int = 20, page: int = 1) -> List[Dict[str, Any]]:
-        """
-        Get inbox messages using IMAP.
-        
-        Args:
-            limit: Maximum number of messages
-            page: Page number (1-based)
-            
-        Returns:
-            List of message metadata
-        """
+        """Get inbox messages using IMAP."""
         if not self.authenticated or not self.imap:
             if not await self.authenticate():
                 return []
         
         try:
-            # Run in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
             return await loop.run_in_executor(None, self._get_inbox_sync, limit, page)
         except Exception as e:
@@ -157,7 +129,6 @@ class ImapSmtpProvider(MailProvider):
             
             # Fetch messages
             for msg_id in paged_ids:
-                # Fetch headers and body preview
                 status, msg_data = self.imap.fetch(msg_id, '(BODY.PEEK[HEADER] BODY.PEEK[1]<0.500>)')
                 if status != 'OK':
                     continue
@@ -171,8 +142,6 @@ class ImapSmtpProvider(MailProvider):
                 from_addr = email_message.get('From', '')
                 to_addr = email_message.get('To', '')
                 date_str = email_message.get('Date', '')
-                
-                # Extract message ID
                 message_id = msg_id.decode()
                 
                 # Get body preview
@@ -200,21 +169,12 @@ class ImapSmtpProvider(MailProvider):
             return messages
     
     async def get_message(self, message_id: str) -> Dict[str, Any]:
-        """
-        Get a specific message by ID.
-        
-        Args:
-            message_id: Message ID
-            
-        Returns:
-            Message data with headers and body
-        """
+        """Get a specific message by ID."""
         if not self.authenticated or not self.imap:
             if not await self.authenticate():
                 return {}
         
         try:
-            # Run in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
             return await loop.run_in_executor(None, self._get_message_sync, message_id)
         except Exception as e:
@@ -262,7 +222,7 @@ class ImapSmtpProvider(MailProvider):
                 'message_id': message_id_header,
                 'in_reply_to': in_reply_to,
                 'references': references,
-                'thread_id': in_reply_to or message_id_header  # Simple threading
+                'thread_id': in_reply_to or message_id_header
             }
             
             return message
@@ -271,22 +231,13 @@ class ImapSmtpProvider(MailProvider):
             return {}
     
     def _extract_body(self, email_message) -> Tuple[str, str]:
-        """
-        Extract body text from email message.
-        
-        Args:
-            email_message: Email message object
-            
-        Returns:
-            Tuple of (body_text, content_type)
-        """
+        """Extract body text from email message."""
         # Default values
         body = ""
         content_type = "text/plain"
         
         # Check if the message is multipart
         if email_message.is_multipart():
-            # Try to find HTML part first
             html_part = None
             text_part = None
             
@@ -295,7 +246,6 @@ class ImapSmtpProvider(MailProvider):
                 
                 if part_content_type == "text/html":
                     html_part = part
-                    
                 elif part_content_type == "text/plain":
                     text_part = part
             
@@ -319,25 +269,12 @@ class ImapSmtpProvider(MailProvider):
     async def send_message(self, to: List[str], subject: str, body: str, 
                          cc: Optional[List[str]] = None,
                          bcc: Optional[List[str]] = None) -> bool:
-        """
-        Send a new email message.
-        
-        Args:
-            to: List of recipient email addresses
-            subject: Email subject
-            body: Email body
-            cc: List of CC recipients
-            bcc: List of BCC recipients
-            
-        Returns:
-            True if successful, False otherwise
-        """
+        """Send a new email message."""
         if not self.authenticated:
             if not await self.authenticate():
                 return False
         
         try:
-            # Run in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
             return await loop.run_in_executor(None, self._send_message_sync, to, subject, body, cc, bcc)
         except Exception as e:
@@ -385,16 +322,7 @@ class ImapSmtpProvider(MailProvider):
             return False
     
     async def reply_to_message(self, message_id: str, body: str) -> bool:
-        """
-        Reply to a specific message.
-        
-        Args:
-            message_id: Message ID to reply to
-            body: Reply body text
-            
-        Returns:
-            True if successful, False otherwise
-        """
+        """Reply to a specific message."""
         if not self.authenticated:
             if not await self.authenticate():
                 return False
@@ -423,29 +351,20 @@ class ImapSmtpProvider(MailProvider):
                 subject=subject,
                 body=body,
                 # Add original recipients in CC
-                cc=[addr.strip() for addr in original.get('to', '').split(',') if addr.strip() and addr.strip() != self.email]
+                cc=[addr.strip() for addr in original.get('to', '').split(',') 
+                   if addr.strip() and addr.strip() != self.email]
             )
         except Exception as e:
             logger.error(f"Error replying to message: {str(e)}")
             return False
     
     async def search_messages(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
-        """
-        Search for messages using IMAP search.
-        
-        Args:
-            query: Search query
-            limit: Maximum number of results
-            
-        Returns:
-            List of matching messages
-        """
+        """Search for messages using IMAP search."""
         if not self.authenticated or not self.imap:
             if not await self.authenticate():
                 return []
         
         try:
-            # Run in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
             return await loop.run_in_executor(None, self._search_messages_sync, query, limit)
         except Exception as e:
@@ -460,25 +379,19 @@ class ImapSmtpProvider(MailProvider):
             self.imap.select('INBOX')
             
             # Prepare search criteria
-            # This is a simple implementation - in production, we'd need to parse
-            # the query and translate to IMAP search criteria
             if '@' in query:  # Assume it's an email address
                 status, data = self.imap.search(None, f'FROM "{query}"')
             elif query.startswith('subject:'):
                 subject = query[8:].strip()
                 status, data = self.imap.search(None, f'SUBJECT "{subject}"')
             else:
-                # Search in subject and body (TEXT searches body only in some servers)
                 status, data = self.imap.search(None, f'OR SUBJECT "{query}" TEXT "{query}"')
             
             if status != 'OK':
                 return messages
             
-            # Get message IDs
-            message_ids = data[0].split()
-            
-            # Reverse to get newest first and limit results
-            message_ids = message_ids[::-1][:limit]
+            # Get message IDs and limit results
+            message_ids = data[0].split()[::-1][:limit]
             
             # Fetch messages
             for msg_id in message_ids:
@@ -510,18 +423,12 @@ class ImapSmtpProvider(MailProvider):
             return messages
     
     async def get_folders(self) -> List[Dict[str, Any]]:
-        """
-        Get available mail folders.
-        
-        Returns:
-            List of folder metadata
-        """
+        """Get available mail folders."""
         if not self.authenticated or not self.imap:
             if not await self.authenticate():
                 return []
         
         try:
-            # Run in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
             return await loop.run_in_executor(None, self._get_folders_sync)
         except Exception as e:
@@ -537,19 +444,18 @@ class ImapSmtpProvider(MailProvider):
             if status != 'OK':
                 return folders
             
-            # Process folder list
+            # Process folders
             for folder_data in folder_list:
                 if isinstance(folder_data, bytes):
-                    # Example: b'(\\HasNoChildren) "/" "INBOX"'
                     folder_str = folder_data.decode()
                     
-                    # Extract folder name - this is a simplification
+                    # Extract folder name
                     if '"' in folder_str:
                         name = folder_str.split('"')[-2]
                     else:
                         continue
                     
-                    # Get message count in folder
+                    # Get counts
                     try:
                         self.imap.select(f'"{name}"', readonly=True)
                         status, data = self.imap.search(None, 'ALL')

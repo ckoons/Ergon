@@ -5,9 +5,8 @@ Agent generator for creating new AI agents.
 import os
 import json
 import asyncio
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
 from datetime import datetime
-from pathlib import Path
 import logging
 import importlib
 
@@ -53,13 +52,7 @@ class AgentGenerator:
         model_name: Optional[str] = None,
         temperature: float = 0.7,
     ):
-        """
-        Initialize the agent generator.
-        
-        Args:
-            model_name: Name of the model to use for generation (defaults to settings)
-            temperature: Temperature for generation (0-1)
-        """
+        """Initialize the agent generator."""
         self.model_name = model_name or settings.default_model
         self.temperature = temperature
         self.llm_client = LLMClient(model_name=self.model_name, temperature=self.temperature)
@@ -71,17 +64,7 @@ class AgentGenerator:
         description: str,
         tools: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
-        """
-        Generate a new agent.
-        
-        Args:
-            name: Name of the agent
-            description: Description of the agent
-            tools: Optional list of tools for the agent
-        
-        Returns:
-            Dictionary with agent details and files
-        """
+        """Generate a new agent."""
         # Validate name (alphanumeric with underscores)
         if not name.replace("_", "").isalnum():
             raise ValueError("Agent name must contain only alphanumeric characters and underscores")
@@ -110,7 +93,7 @@ class AgentGenerator:
         tools: Optional[List[Dict[str, Any]]] = None
     ) -> List[Dict[str, Any]]:
         """Search for relevant documentation."""
-        # Construct search query from description and tools
+        # Construct search query
         query_parts = [f"Create an agent named {name} that {description}"]
         
         if tools:
@@ -161,13 +144,11 @@ If you're unsure about something, acknowledge that limitation rather than making
             template += f"\n\nYou have access to the following tools:\n{tool_descriptions}\n"
             template += "\nWhen a tool would be helpful for answering a question, use it rather than making up information."
         
-        # For simple agents, we can use the template directly
-        # For more complex agents, we could use the LLM to generate a better prompt
+        # For complex agents, use LLM to generate a better prompt
         if len(description) > 100 or (tools and len(tools) > 2):
-            # Use LLM to generate a better system prompt
             messages = [
-                {"role": "system", "content": "You are an expert at creating system prompts for AI assistants. Your goal is to create a clear, concise, and effective system prompt based on the provided description and tools."},
-                {"role": "user", "content": f"Create a system prompt for an AI assistant with these specifications:\n\nName: {name}\nDescription: {description}\nTools: {json.dumps(tools) if tools else 'None'}\n\nThe system prompt should be comprehensive and cover the assistant's purpose, tone, limitations, and how it should use its tools."}
+                {"role": "system", "content": "You are an expert at creating system prompts for AI assistants."},
+                {"role": "user", "content": f"Create a system prompt for an AI assistant with these specifications:\n\nName: {name}\nDescription: {description}\nTools: {json.dumps(tools) if tools else 'None'}\n\nThe prompt should cover the assistant's purpose, tone, limitations, and how it should use its tools."}
             ]
             
             try:
@@ -176,7 +157,6 @@ If you're unsure about something, acknowledge that limitation rather than making
                     return improved_prompt
             except Exception as e:
                 logger.error(f"Error generating system prompt: {str(e)}")
-                # Fall back to template
         
         return template
     
@@ -194,16 +174,14 @@ If you're unsure about something, acknowledge that limitation rather than making
         docs_text = ""
         if relevant_docs:
             docs_text = "\n\n".join([
-                f"--- Document: {doc['metadata'].get('title', 'Untitled Document')} ---\n{doc['content'][:500]}..."
+                f"--- Document: {doc['metadata'].get('title', 'Untitled')} ---\n{doc['content'][:500]}..."
                 for doc in relevant_docs
             ])
         
         # Generate main agent file
-        main_file = None
         try:
             main_file = await generate_main_file(
-                self.llm_client, name, description, 
-                tools, docs_text
+                self.llm_client, name, description, tools, docs_text
             )
         except Exception as error:
             logger.error(f"Error generating main file: {str(error)}")
@@ -217,7 +195,6 @@ If you're unsure about something, acknowledge that limitation rather than making
         
         # Generate tools file if needed
         if tools:
-            tools_file = None
             try:
                 tools_file = await generate_tools_file(
                     self.llm_client, name, tools, docs_text
@@ -233,7 +210,6 @@ If you're unsure about something, acknowledge that limitation rather than making
             })
         
         # Generate prompts file
-        prompts_file = None
         try:
             prompts_file = await generate_prompts_file(
                 self.llm_client, name, description, tools
@@ -249,7 +225,6 @@ If you're unsure about something, acknowledge that limitation rather than making
         })
         
         # Generate requirements file
-        requirements = None
         try:
             requirements = await generate_requirements_file(
                 self.llm_client, name, description, tools
@@ -265,7 +240,6 @@ If you're unsure about something, acknowledge that limitation rather than making
         })
         
         # Generate .env example file
-        env_example = None
         try:
             env_example = await generate_env_file(
                 self.llm_client, name, self.model_name
@@ -281,7 +255,6 @@ If you're unsure about something, acknowledge that limitation rather than making
         })
         
         # Generate README
-        readme = None
         try:
             readme = await generate_readme_file(
                 self.llm_client, name, description, tools
@@ -304,17 +277,7 @@ If you're unsure about something, acknowledge that limitation rather than making
         description: str,
         tools: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
-        """
-        Generate a GitHub agent.
-        
-        Args:
-            name: Name of the agent
-            description: Description of the agent
-            tools: List of GitHub tools for the agent
-        
-        Returns:
-            Dictionary with agent details and files
-        """
+        """Generate a GitHub agent."""
         # Validate name (alphanumeric with underscores)
         if not name.replace("_", "").isalnum():
             raise ValueError("Agent name must contain only alphanumeric characters and underscores")
@@ -476,37 +439,23 @@ def generate_agent(
     tools: Optional[List[Dict[str, Any]]] = None,
     agent_type: str = "standard"
 ) -> Dict[str, Any]:
-    """
-    Synchronous wrapper for agent generation.
-    
-    Args:
-        name: Name of the agent
-        description: Description of the agent
-        model_name: Name of the model to use
-        temperature: Temperature for generation
-        tools: Optional list of tools for the agent
-        agent_type: Type of agent to create (standard, github, mail, etc.)
-    
-    Returns:
-        Dictionary with agent details and files
-    """
+    """Synchronous wrapper for agent generation."""
     generator = AgentGenerator(model_name=model_name, temperature=temperature)
     
     if agent_type == "github":
-        # Import the GitHub tools dynamically to avoid circular imports
+        # Import GitHub tools and override tools parameter
         from ergon.core.agents.generators.github_generator import get_github_tools
-        # Override tools with GitHub tools
         github_tools = get_github_tools()
         return asyncio.run(generator.generate_github_agent(name, description, github_tools))
+    
     elif agent_type == "mail":
-        # Import the mail generator dynamically to avoid circular imports
-        from ergon.core.agents.generators.mail_generator import generate_mail_agent
         # Generate mail agent
+        from ergon.core.agents.generators.mail_generator import generate_mail_agent
         return generate_mail_agent(name, description, model_name or settings.default_model)
+    
     elif agent_type == "browser":
-        # Import the browser generator dynamically to avoid circular imports
-        from ergon.core.agents.generators.browser_generator import BrowserAgentGenerator
         # Generate browser agent
+        from ergon.core.agents.generators.browser_generator import BrowserAgentGenerator
         browser_generator = BrowserAgentGenerator()
         browser_data = browser_generator.generate(name, description)
         
@@ -517,15 +466,15 @@ def generate_agent(
             "tools": browser_data["tools"],
             "files": [] # No files for browser agent
         }
+    
     elif agent_type == "nexus":
-        # Dynamic import to avoid circular imports
+        # Generate memory-enabled Nexus agent
         try:
             from ergon.core.agents.generators.nexus.generator import generate_nexus_agent
             
-            # Generate memory-enabled Nexus agent
             nexus_agent = generate_nexus_agent(name, description, model_name or settings.default_model)
             
-            # Convert to the expected format
+            # Convert to expected format
             tools_data = []
             with get_db_session() as db:
                 tools = db.query(AgentTool).filter(AgentTool.agent_id == nexus_agent.id).all()
@@ -568,21 +517,10 @@ async def generate_github_agent(
     model_name: Optional[str] = None,
     temperature: float = 0.7
 ) -> Dict[str, Any]:
-    """
-    Synchronous wrapper for GitHub agent generation.
-    
-    Args:
-        name: Name of the agent
-        description: Description of the agent
-        model_name: Name of the model to use
-        temperature: Temperature for generation
-    
-    Returns:
-        Dictionary with agent details and files
-    """
+    """Wrapper for GitHub agent generation."""
     generator = AgentGenerator(model_name=model_name, temperature=temperature)
     
-    # Import the GitHub tools dynamically to avoid circular imports
+    # Import GitHub tools
     from ergon.core.agents.generators.github_generator import get_github_tools
     github_tools = get_github_tools()
     
