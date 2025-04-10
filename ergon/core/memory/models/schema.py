@@ -10,7 +10,7 @@ from sqlalchemy import Column, String, Integer, Text, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
-from ergon.core.database.models import Base
+from ergon.core.database.base import Base
 
 class MemoryCollection(Base):
     """Collection of memories for organizational purposes."""
@@ -35,7 +35,7 @@ class Memory(Base):
     category = Column(String(50), index=True)
     importance = Column(Integer, default=3)
     created_at = Column(DateTime, default=datetime.utcnow)
-    metadata = Column(JSON, nullable=True)
+    memory_metadata = Column(JSON, nullable=True)
     
     # Relationships
     agent = relationship("Agent", back_populates="memories")

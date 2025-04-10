@@ -11,8 +11,8 @@ import os
 
 from ergon.utils.config.settings import settings
 
-# Import Base from models to avoid circular imports
-from ergon.core.database.models import Base
+# Import Base from base module
+from ergon.core.database.base import Base
 
 # Create engine
 engine = create_engine(

@@ -1,12 +1,11 @@
 """Database models for Ergon."""
 import enum
 from sqlalchemy import Column, Integer, String, ForeignKey, Text, Boolean, DateTime, JSON, Enum, Table, Float
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
-# Create base class for declarative models
-Base = declarative_base()
+# Import Base from the base module
+from ergon.core.database.base import Base
 
 # Association table for agent <-> tools
 agent_tool = Table(
@@ -72,6 +71,65 @@ class Tool(Base):
     
     # Relationships
     agents = relationship("Agent", secondary=agent_tool, back_populates="tools")
+    
+class AgentFile(Base):
+    """File associated with an agent."""
+    __tablename__ = 'agent_files'
+    
+    id = Column(Integer, primary_key=True)
+    agent_id = Column(Integer, ForeignKey('agents.id'))
+    filename = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    agent = relationship("Agent")
+    
+class AgentTool(Base):
+    """Tool configuration for an agent."""
+    __tablename__ = 'agent_tool_configs'
+    
+    id = Column(Integer, primary_key=True)
+    agent_id = Column(Integer, ForeignKey('agents.id'))
+    tool_id = Column(Integer, ForeignKey('tools.id'))
+    config = Column(JSON, nullable=True)  # Tool-specific configuration
+    enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    agent = relationship("Agent")
+    tool = relationship("Tool")
+    
+class AgentExecution(Base):
+    """Execution record for agent runs."""
+    __tablename__ = 'agent_executions'
+    
+    id = Column(Integer, primary_key=True)
+    agent_id = Column(Integer, ForeignKey('agents.id'))
+    status = Column(String(50), nullable=False, default="pending")
+    start_time = Column(DateTime, default=datetime.utcnow)
+    end_time = Column(DateTime, nullable=True)
+    execution_time = Column(Float, nullable=True)  # in seconds
+    input_data = Column(Text, nullable=True)
+    result = Column(Text, nullable=True)
+    error = Column(Text, nullable=True)
+    
+    # Relationships
+    agent = relationship("Agent")
+    messages = relationship("AgentMessage", back_populates="execution")
+    
+class AgentMessage(Base):
+    """Message exchanged during agent execution."""
+    __tablename__ = 'agent_messages'
+    
+    id = Column(Integer, primary_key=True)
+    execution_id = Column(Integer, ForeignKey('agent_executions.id'))
+    role = Column(String(50), nullable=False)  # user, assistant, system, tool, etc.
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    execution = relationship("AgentExecution", back_populates="messages")
 
 class Component(Base):
     """Component model representing a reusable component."""
@@ -98,6 +156,19 @@ class ComponentMetadata(Base):
     
     # Relationships
     component = relationship("Component", back_populates="meta_items")
+    
+class DocumentationPage(Base):
+    """Documentation page for reference."""
+    __tablename__ = 'documentation_pages'
+    
+    id = Column(Integer, primary_key=True)
+    title = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False)
+    source = Column(String(255), nullable=True)
+    url = Column(String(1024), nullable=True)
+    category = Column(String(255), nullable=True)
+    embedding = Column(Text, nullable=True)  # JSON serialized embedding
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 # Import memory models
 try:
@@ -117,7 +188,7 @@ except ImportError:
         category = Column(String(50), index=True)
         importance = Column(Integer, default=3)
         created_at = Column(DateTime, default=datetime.utcnow)
-        metadata = Column(JSON, nullable=True)
+        memory_metadata = Column(JSON, nullable=True)
         
         # Relationships
         agent = relationship("Agent", back_populates="memories")

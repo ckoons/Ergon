@@ -153,7 +153,7 @@ class MemoryService:
                 content=content,
                 category=category,
                 importance=importance,
-                metadata=memory_metadata
+                memory_metadata=memory_metadata
             )
             db.add(memory)
             db.commit()
