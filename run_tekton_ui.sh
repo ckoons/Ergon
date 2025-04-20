@@ -24,7 +24,7 @@ fi
 # Check if Tekton UI is already running
 if pgrep -f "hephaestus_launch" > /dev/null; then
     echo -e "${YELLOW}Tekton UI is already running. Stopping existing instance...${NC}"
-    ./scripts/tekton_kill
+    ./scripts/tekton-kill
     sleep 2
 fi
 
