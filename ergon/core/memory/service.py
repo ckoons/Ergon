@@ -32,33 +32,42 @@ class MemoryService:
     and Tekton's vector store for embedding storage and semantic search.
     """
     
-    def __init__(self, agent_id: int, agent_name: str = None):
+    def __init__(self, agent_id: Optional[int] = None, agent_name: Optional[str] = None):
         """
         Initialize the memory service.
         
         Args:
-            agent_id: The ID of the agent to manage memories for
+            agent_id: The ID of the agent to manage memories for (or None for terminal chat)
             agent_name: Optional name of the agent (for better logging)
         """
         self.agent_id = agent_id
         self.agent_name = agent_name
+        self.terminal_contexts = {}
         
-        # Get agent details if name not provided
-        if not self.agent_name:
-            with get_db_session() as db:
-                agent = db.query(Agent).filter(Agent.id == self.agent_id).first()
-                if agent:
-                    self.agent_name = agent.name
-                else:
-                    self.agent_name = f"Agent-{self.agent_id}"
-        
-        # Create namespace for isolation
-        self.namespace = f"agent_{self.agent_id}"
+        # If agent_id is provided, this is for a specific agent
+        if agent_id:
+            # Get agent details if name not provided
+            if not self.agent_name:
+                with get_db_session() as db:
+                    agent = db.query(Agent).filter(Agent.id == self.agent_id).first()
+                    if agent:
+                        self.agent_name = agent.name
+                    else:
+                        self.agent_name = f"Agent-{self.agent_id}"
+            
+            # Create namespace for isolation
+            self.namespace = f"agent_{self.agent_id}"
+        else:
+            # Terminal chat mode - use a different namespace
+            self.namespace = "terminal_chat"
         
         # Initialize vector store
         self.vector_store = MemoryVectorService(namespace=self.namespace)
         
-        logger.info(f"Memory service initialized for agent {self.agent_id} ({self.agent_name})")
+        if agent_id:
+            logger.info(f"Memory service initialized for agent {self.agent_id} ({self.agent_name})")
+        else:
+            logger.info(f"Memory service initialized for terminal chat")
     
     async def initialize(self):
         """Initialize the memory service and register with Engram."""
@@ -421,3 +430,113 @@ class MemoryService:
             logger.warning(f"Error during deregistration from Engram: {e}")
         
         return True
+        
+    # Terminal chat methods
+    
+    async def add_message(self, context_id: str, message: str, role: str) -> str:
+        """
+        Add a message to the terminal chat memory.
+        
+        Args:
+            context_id: The context ID (e.g., 'ergon', 'awt-team')
+            message: The message content
+            role: The message role ('user' or 'assistant')
+            
+        Returns:
+            Message ID
+        """
+        # Initialize context if needed
+        if context_id not in self.terminal_contexts:
+            self.terminal_contexts[context_id] = []
+        
+        # Create message object
+        message_id = str(uuid.uuid4())
+        timestamp = int(time.time())
+        
+        message_obj = {
+            "id": message_id,
+            "content": message,
+            "role": role,
+            "context_id": context_id,
+            "timestamp": timestamp
+        }
+        
+        # Add to in-memory context
+        self.terminal_contexts[context_id].append(message_obj)
+        
+        # Trim context if too long
+        max_context_length = 50
+        if len(self.terminal_contexts[context_id]) > max_context_length:
+            self.terminal_contexts[context_id] = self.terminal_contexts[context_id][-max_context_length:]
+        
+        # For persistence, also add as a memory
+        category = "terminal_chat"
+        importance = 3
+        
+        # Create metadata
+        memory_metadata = {
+            "context_id": context_id,
+            "role": role,
+            "category": category,
+            "importance": importance,
+            "timestamp": timestamp
+        }
+        
+        # Generate embedding
+        embedding = await embedding_service.embed_text(message)
+        
+        # Store in vector database
+        memory_id = await self.vector_store.add_memory(
+            content=message,
+            embedding=embedding,
+            metadata=memory_metadata
+        )
+        
+        logger.debug(f"Added terminal message to context {context_id}, role {role}")
+        return message_id
+    
+    def get_recent_messages(self, context_id: str, limit: int = 10) -> List[Dict[str, str]]:
+        """
+        Get recent messages from the terminal chat memory.
+        
+        Args:
+            context_id: The context ID (e.g., 'ergon', 'awt-team')
+            limit: Maximum number of messages to return
+            
+        Returns:
+            List of messages in format expected by LLM client
+        """
+        # Check if context exists
+        if context_id not in self.terminal_contexts:
+            return []
+        
+        # Get most recent messages up to the limit
+        recent_messages = self.terminal_contexts[context_id][-limit:]
+        
+        # Format for LLM client (which expects role and content keys)
+        return [{"role": msg["role"], "content": msg["content"]} for msg in recent_messages]
+    
+    async def clear_context(self, context_id: str) -> bool:
+        """
+        Clear all messages for a context.
+        
+        Args:
+            context_id: The context ID to clear
+            
+        Returns:
+            True if successful
+        """
+        if context_id in self.terminal_contexts:
+            self.terminal_contexts[context_id] = []
+            
+            # Delete from vector store - we'd need a better filter here in a real implementation
+            # This is just a placeholder
+            try:
+                # Find all memories with this context_id and delete them
+                # This would be cleaner with a proper filter system in the vector store
+                pass
+            except Exception as e:
+                logger.error(f"Error clearing context from vector store: {e}")
+            
+            return True
+        return False

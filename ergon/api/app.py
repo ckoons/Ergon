@@ -26,11 +26,18 @@ from ergon.core.agents.runner import AgentRunner
 from ergon.core.docs.crawler import crawl_all_docs, crawl_pydantic_ai_docs, crawl_langchain_docs, crawl_anthropic_docs
 from ergon.core.llm.client import LLMClient
 from ergon.core.vector_store.faiss_store import FAISSDocumentStore
+from ergon.core.memory.service import MemoryService
 from ergon.utils.config.settings import settings
+
+# Create terminal memory service as a global instance
+terminal_memory = MemoryService()
 
 # Configure logger
 logger = logging.getLogger(__name__)
 logger.setLevel(getattr(logging, settings.log_level.value))
+
+# Initialize memory service
+memory_service = MemoryService()
 
 # Initialize database if needed
 if not os.path.exists(settings.database_url.replace("sqlite:///", "")):
@@ -101,6 +108,23 @@ class DocCrawlResponse(BaseModel):
     status: str
     pages_crawled: int
     source: str
+    
+class TerminalMessageRequest(BaseModel):
+    """Model for terminal message request."""
+    message: str = Field(..., description="Message content")
+    context_id: str = Field("ergon", description="Context ID (e.g., 'ergon', 'awt-team')")
+    model: Optional[str] = Field(None, description="LLM model to use (defaults to settings)")
+    temperature: Optional[float] = Field(None, description="Temperature for generation (0-1)")
+    max_tokens: Optional[int] = Field(None, description="Maximum tokens to generate")
+    streaming: bool = Field(True, description="Whether to stream the response")
+    save_to_memory: bool = Field(True, description="Whether to save message to memory")
+    
+class TerminalMessageResponse(BaseModel):
+    """Model for terminal message response."""
+    status: str
+    message: Optional[str] = None
+    error: Optional[str] = None
+    context_id: str
 
 # ----- Routes -----
 
@@ -354,5 +378,165 @@ async def search_docs(
     except Exception as e:
         logger.error(f"Error searching docs: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error searching docs: {str(e)}")
+
+@app.post("/terminal/message", response_model=TerminalMessageResponse)
+async def terminal_message(
+    request: TerminalMessageRequest,
+    background_tasks: BackgroundTasks
+):
+    """Handle terminal message from UI."""
+    try:
+        # Get appropriate LLM client based on settings
+        llm_client = LLMClient(
+            model_name=request.model,
+            temperature=request.temperature or 0.7,
+            max_tokens=request.max_tokens
+        )
+        
+        # Prepare messages
+        messages = []
+        
+        # Add a system message based on the context
+        system_message = "You are a helpful assistant."
+        if request.context_id == "ergon":
+            system_message = "You are the Ergon AI assistant, specialized in agent creation, automation, and tool configuration for the Tekton system. Be concise and helpful."
+        elif request.context_id == "awt-team":
+            system_message = "You are the Advanced Workflow Team assistant for Tekton. You specialize in workflow automation, process design, and team collaboration. Be concise and helpful."
+        elif request.context_id == "agora":
+            system_message = "You are Agora, a multi-component AI assistant for Tekton. You coordinate between different AI systems to solve complex problems. Be concise and helpful."
+        
+        messages.append({"role": "system", "content": system_message})
+        
+        # Get previous messages from memory if applicable
+        if request.save_to_memory:
+            prev_messages = terminal_memory.get_recent_messages(request.context_id, limit=10)
+            messages.extend(prev_messages)
+        
+        # Add the current user message
+        messages.append({"role": "user", "content": request.message})
+        
+        # If streaming is requested, handle streaming response
+        if request.streaming:
+            return await terminal_stream(request, background_tasks)
+        
+        # Otherwise, handle regular response
+        # Call LLM with the message
+        response = await llm_client.acomplete(messages)
+        
+        # Save to memory if needed
+        if request.save_to_memory:
+            background_tasks.add_task(
+                terminal_memory.add_message,
+                context_id=request.context_id,
+                message=request.message,
+                role="user"
+            )
+            background_tasks.add_task(
+                terminal_memory.add_message,
+                context_id=request.context_id,
+                message=response,
+                role="assistant"
+            )
+        
+        return {
+            "status": "success",
+            "message": response,
+            "context_id": request.context_id
+        }
+    except Exception as e:
+        logger.error(f"Error handling terminal message: {str(e)}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "context_id": request.context_id
+        }
+
+@app.post("/terminal/stream")
+async def terminal_stream(
+    request: TerminalMessageRequest,
+    background_tasks: BackgroundTasks
+):
+    """Stream response from LLM for terminal."""
+    try:
+        # Get appropriate LLM client based on settings
+        llm_client = LLMClient(
+            model_name=request.model,
+            temperature=request.temperature or 0.7,
+            max_tokens=request.max_tokens
+        )
+        
+        # Prepare messages
+        messages = []
+        
+        # Add a system message based on the context
+        system_message = "You are a helpful assistant."
+        if request.context_id == "ergon":
+            system_message = "You are the Ergon AI assistant, specialized in agent creation, automation, and tool configuration for the Tekton system. Be concise and helpful."
+        elif request.context_id == "awt-team":
+            system_message = "You are the Advanced Workflow Team assistant for Tekton. You specialize in workflow automation, process design, and team collaboration. Be concise and helpful."
+        elif request.context_id == "agora":
+            system_message = "You are Agora, a multi-component AI assistant for Tekton. You coordinate between different AI systems to solve complex problems. Be concise and helpful."
+        
+        messages.append({"role": "system", "content": system_message})
+        
+        # Get previous messages from memory if applicable
+        if request.save_to_memory:
+            prev_messages = terminal_memory.get_recent_messages(request.context_id, limit=10)
+            messages.extend(prev_messages)
+        
+        # Add the current user message
+        messages.append({"role": "user", "content": request.message})
+        
+        # Save user message to memory
+        if request.save_to_memory:
+            background_tasks.add_task(
+                terminal_memory.add_message,
+                context_id=request.context_id,
+                message=request.message,
+                role="user"
+            )
+        
+        # Create string buffer to collect full response
+        response_buffer = []
+        
+        # Define callback to save complete response to memory
+        async def on_complete():
+            if request.save_to_memory:
+                full_response = "".join(response_buffer)
+                await terminal_memory.add_message(
+                    context_id=request.context_id,
+                    message=full_response,
+                    role="assistant"
+                )
+        
+        # Stream generator function
+        async def generate():
+            async for chunk in llm_client.acomplete_stream(messages):
+                # Add to buffer for saving later
+                response_buffer.append(chunk)
+                
+                # Format as server-sent event
+                yield f"data: {json.dumps({'chunk': chunk, 'context_id': request.context_id})}\n\n"
+            
+            # Complete streaming
+            await on_complete()
+            yield f"data: {json.dumps({'done': True, 'context_id': request.context_id})}\n\n"
+        
+        # Return streaming response
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error streaming terminal response: {str(e)}")
+        # Return error as SSE
+        async def error_response():
+            yield f"data: {json.dumps({'error': str(e), 'context_id': request.context_id})}\n\n"
+        
+        return StreamingResponse(
+            error_response(),
+            media_type="text/event-stream"
+        )
 
 # Run with: uvicorn ergon.api.app:app --host 0.0.0.0 --port 8000
