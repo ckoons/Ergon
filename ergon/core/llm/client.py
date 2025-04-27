@@ -2,24 +2,27 @@
 LLM Client Module for Ergon.
 
 This module provides a unified interface for interacting with different
-LLM providers (OpenAI, Anthropic, Ollama).
+LLM providers through the Rhetor LLM adapter.
 """
 
 import os
 import json
 import asyncio
+import logging
 from typing import Dict, Any, List, Optional, Union, Callable, AsyncGenerator
 from enum import Enum
 import httpx
 
 from ergon.utils.config.settings import settings
 
+logger = logging.getLogger(__name__)
 
 class LLMProvider(str, Enum):
     """Enum for supported LLM providers."""
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
     OLLAMA = "ollama"
+    RHETOR = "rhetor"  # Added Rhetor as a provider
     UNKNOWN = "unknown"
 
 
@@ -41,17 +44,18 @@ class Message:
 
 class LLMClient:
     """
-    Unified client for interacting with LLM providers.
+    Unified client for interacting with LLM providers through Rhetor.
     
     This class provides a simple, consistent interface for sending
-    prompts to various LLM providers.
+    prompts to various LLM providers via the Rhetor adapter.
     """
     
     def __init__(
         self, 
         model_name: Optional[str] = None,
         temperature: float = 0.7,
-        max_tokens: Optional[int] = None
+        max_tokens: Optional[int] = None,
+        use_rhetor: bool = True  # Default to using Rhetor
     ):
         """
         Initialize the LLM client.
@@ -60,10 +64,13 @@ class LLMClient:
             model_name: Name of the model to use
             temperature: Temperature for generation (0-1)
             max_tokens: Maximum tokens to generate
+            use_rhetor: Whether to use the Rhetor adapter (default: True)
         """
         self.model_name = model_name or settings.default_model
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.use_rhetor = use_rhetor
+        self.rhetor_adapter = None
         
         # Determine provider from model name
         if "gpt" in self.model_name.lower() or self.model_name.startswith("openai/"):
@@ -77,15 +84,64 @@ class LLMClient:
         else:
             self.provider = LLMProvider.UNKNOWN
         
-        # Create appropriate client
-        if self.provider == LLMProvider.OPENAI:
-            self._create_openai_client()
-        elif self.provider == LLMProvider.ANTHROPIC:
-            self._create_anthropic_client()
-        elif self.provider == LLMProvider.OLLAMA:
-            self._create_ollama_client()
+        # Initialize clients
+        if self.use_rhetor:
+            self._initialize_rhetor_adapter()
         else:
-            raise ValueError(f"Unknown model provider for model: {self.model_name}")
+            # This is the legacy direct provider implementation, retained for fallback
+            if self.provider == LLMProvider.OPENAI:
+                self._create_openai_client()
+            elif self.provider == LLMProvider.ANTHROPIC:
+                self._create_anthropic_client()
+            elif self.provider == LLMProvider.OLLAMA:
+                self._create_ollama_client()
+            else:
+                raise ValueError(f"Unknown model provider for model: {self.model_name}")
+    
+    def _initialize_rhetor_adapter(self):
+        """Initialize the Rhetor LLM adapter."""
+        try:
+            from .rhetor_adapter import RhetorLLMAdapter
+            self.rhetor_adapter = RhetorLLMAdapter(
+                model_name=self.model_name,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens
+            )
+            
+            # Schedule the async initialization to run in the background
+            asyncio.create_task(self._async_init_rhetor())
+            
+        except ImportError as e:
+            logger.warning(f"Rhetor adapter not available, falling back to direct providers: {e}")
+            self.use_rhetor = False
+            
+            # Initialize direct provider clients as fallback
+            if self.provider == LLMProvider.OPENAI:
+                self._create_openai_client()
+            elif self.provider == LLMProvider.ANTHROPIC:
+                self._create_anthropic_client()
+            elif self.provider == LLMProvider.OLLAMA:
+                self._create_ollama_client()
+            else:
+                raise ValueError(f"Unknown model provider for model: {self.model_name}")
+    
+    async def _async_init_rhetor(self):
+        """Initialize the Rhetor adapter asynchronously."""
+        if self.rhetor_adapter:
+            try:
+                await self.rhetor_adapter.initialize()
+                logger.info("Rhetor LLM adapter initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize Rhetor adapter: {e}")
+                self.use_rhetor = False
+                
+                # Initialize direct provider clients as fallback
+                if self.provider == LLMProvider.OPENAI:
+                    self._create_openai_client()
+                elif self.provider == LLMProvider.ANTHROPIC:
+                    self._create_anthropic_client()
+                elif self.provider == LLMProvider.OLLAMA:
+                    self._create_ollama_client()
     
     def _create_openai_client(self):
         """Create OpenAI client."""
@@ -165,6 +221,12 @@ class LLMClient:
         Returns:
             Generated text response
         """
+        # Use Rhetor adapter if available
+        if self.use_rhetor and self.rhetor_adapter:
+            # Convert to async and run
+            return asyncio.run(self.rhetor_adapter.complete(messages))
+        
+        # Legacy direct provider implementation, used as fallback
         if self.provider == LLMProvider.OPENAI:
             formatted_messages = self._format_messages_for_provider(messages)
             
@@ -217,6 +279,11 @@ class LLMClient:
         Returns:
             Generated text response
         """
+        # Use Rhetor adapter if available
+        if self.use_rhetor and self.rhetor_adapter:
+            return await self.rhetor_adapter.acomplete(messages)
+        
+        # Legacy direct provider implementation, used as fallback
         if self.provider == LLMProvider.OPENAI:
             formatted_messages = self._format_messages_for_provider(messages)
             
@@ -274,6 +341,13 @@ class LLMClient:
         Yields:
             Generated text chunks
         """
+        # Use Rhetor adapter if available
+        if self.use_rhetor and self.rhetor_adapter:
+            async for chunk in self.rhetor_adapter.acomplete_stream(messages, callback):
+                yield chunk
+            return
+        
+        # Legacy direct provider implementation, used as fallback
         if self.provider == LLMProvider.OPENAI:
             formatted_messages = self._format_messages_for_provider(messages)
             
