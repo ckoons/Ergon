@@ -28,6 +28,11 @@ from ergon.core.llm.client import LLMClient
 from ergon.core.vector_store.faiss_store import FAISSDocumentStore
 from ergon.core.memory.service import MemoryService
 from ergon.utils.config.settings import settings
+from ergon.utils.tekton_integration import get_component_port, configure_for_single_port
+
+# Import A2A and MCP endpoints
+from .a2a_endpoints import router as a2a_router
+from .mcp_endpoints import router as mcp_router
 
 # Create terminal memory service as a global instance
 terminal_memory = MemoryService()
@@ -43,10 +48,14 @@ memory_service = MemoryService()
 if not os.path.exists(settings.database_url.replace("sqlite:///", "")):
     init_db()
 
+# Get port configuration
+port_config = configure_for_single_port()
+logger.info(f"Ergon API configured with port {port_config['port']}")
+
 # Create FastAPI app
 app = FastAPI(
     title="Ergon API",
-    description="REST API for the Ergon AI agent builder",
+    description="REST API for the Ergon AI agent builder and A2A/MCP services",
     version="0.1.0"
 )
 
@@ -58,6 +67,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include A2A and MCP routers
+app.include_router(a2a_router)
+app.include_router(mcp_router)
 
 # ----- Models -----
 
@@ -97,6 +110,8 @@ class StatusResponse(BaseModel):
     database: bool
     models: List[str]
     doc_count: int
+    port: int
+    single_port_enabled: bool
 
 class DocCrawlRequest(BaseModel):
     """Model for doc crawl request."""
@@ -128,6 +143,7 @@ class TerminalMessageResponse(BaseModel):
 
 # ----- Routes -----
 
+@app.get("/api", response_model=StatusResponse)
 @app.get("/", response_model=StatusResponse)
 async def get_status():
     """Get API status."""
@@ -139,10 +155,21 @@ async def get_status():
         "version": "0.1.0",
         "database": os.path.exists(settings.database_url.replace("sqlite:///", "")),
         "models": settings.available_models,
-        "doc_count": doc_count
+        "doc_count": doc_count,
+        "port": port_config["port"],
+        "single_port_enabled": True
     }
 
-@app.get("/agents", response_model=List[AgentResponse])
+@app.get("/health")
+async def health_check():
+    """Get API health status."""
+    return {
+        "status": "ok",
+        "timestamp": datetime.now().isoformat(),
+        "version": "0.1.0"
+    }
+
+@app.get("/api/agents", response_model=List[AgentResponse])
 async def list_agents(
     skip: int = Query(0, description="Number of agents to skip"),
     limit: int = Query(100, description="Maximum number of agents to return")
@@ -152,7 +179,7 @@ async def list_agents(
         agents = db.query(Agent).offset(skip).limit(limit).all()
         return [agent.__dict__ for agent in agents]
 
-@app.post("/agents", response_model=AgentResponse)
+@app.post("/api/agents", response_model=AgentResponse)
 async def create_agent(agent_data: AgentCreate):
     """Create a new agent."""
     try:
@@ -210,7 +237,7 @@ async def create_agent(agent_data: AgentCreate):
         logger.error(f"Error creating agent: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error creating agent: {str(e)}")
 
-@app.get("/agents/{agent_id}", response_model=AgentResponse)
+@app.get("/api/agents/{agent_id}", response_model=AgentResponse)
 async def get_agent(agent_id: int = Path(..., description="ID of the agent")):
     """Get agent by ID."""
     with get_db_session() as db:
@@ -220,7 +247,7 @@ async def get_agent(agent_id: int = Path(..., description="ID of the agent")):
         
         return agent.__dict__
 
-@app.delete("/agents/{agent_id}")
+@app.delete("/api/agents/{agent_id}")
 async def delete_agent(agent_id: int = Path(..., description="ID of the agent")):
     """Delete agent by ID."""
     with get_db_session() as db:
@@ -233,7 +260,7 @@ async def delete_agent(agent_id: int = Path(..., description="ID of the agent"))
         
         return {"status": "deleted", "id": agent_id}
 
-@app.post("/agents/{agent_id}/run", response_model=MessageResponse)
+@app.post("/api/agents/{agent_id}/run", response_model=MessageResponse)
 async def run_agent(
     message: MessageCreate,
     agent_id: int = Path(..., description="ID of the agent")
@@ -315,7 +342,7 @@ async def run_agent(
         logger.error(f"Error running agent: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error running agent: {str(e)}")
 
-@app.post("/docs/crawl", response_model=DocCrawlResponse)
+@app.post("/api/docs/crawl", response_model=DocCrawlResponse)
 async def crawl_docs(request: DocCrawlRequest):
     """Crawl documentation from specified source."""
     try:
@@ -346,7 +373,7 @@ async def crawl_docs(request: DocCrawlRequest):
         logger.error(f"Error crawling docs: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error crawling docs: {str(e)}")
 
-@app.get("/docs/search")
+@app.get("/api/docs/search")
 async def search_docs(
     query: str = Query(..., description="Search query"),
     limit: int = Query(5, description="Maximum number of results to return")
@@ -379,7 +406,7 @@ async def search_docs(
         logger.error(f"Error searching docs: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error searching docs: {str(e)}")
 
-@app.post("/terminal/message", response_model=TerminalMessageResponse)
+@app.post("/api/terminal/message", response_model=TerminalMessageResponse)
 async def terminal_message(
     request: TerminalMessageRequest,
     background_tasks: BackgroundTasks
@@ -451,7 +478,7 @@ async def terminal_message(
             "context_id": request.context_id
         }
 
-@app.post("/terminal/stream")
+@app.post("/api/terminal/stream")
 async def terminal_stream(
     request: TerminalMessageRequest,
     background_tasks: BackgroundTasks
@@ -539,4 +566,45 @@ async def terminal_stream(
             media_type="text/event-stream"
         )
 
-# Run with: uvicorn ergon.api.app:app --host 0.0.0.0 --port 8000
+# Add WebSocket endpoint for A2A and MCP
+@app.websocket("/ws")
+async def websocket_endpoint(websocket):
+    """WebSocket endpoint for A2A and MCP communication."""
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_text()
+            message = json.loads(data)
+            
+            # Process message based on its type
+            if "protocol" in message:
+                if message["protocol"] == "a2a":
+                    # Handle A2A message
+                    await websocket.send_text(json.dumps({
+                        "type": "a2a_ack",
+                        "status": "received",
+                        "timestamp": time.time()
+                    }))
+                elif message["protocol"] == "mcp":
+                    # Handle MCP message
+                    await websocket.send_text(json.dumps({
+                        "type": "mcp_ack",
+                        "status": "received",
+                        "timestamp": time.time()
+                    }))
+                else:
+                    await websocket.send_text(json.dumps({
+                        "type": "error",
+                        "message": f"Unknown protocol: {message.get('protocol')}"
+                    }))
+            else:
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "message": "Missing protocol field"
+                }))
+    except Exception as e:
+        logger.error(f"WebSocket error: {str(e)}")
+    finally:
+        await websocket.close()
+
+# Run with: uvicorn ergon.api.app:app --host 0.0.0.0 --port 8002
