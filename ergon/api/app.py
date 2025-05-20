@@ -33,6 +33,7 @@ from ergon.utils.tekton_integration import get_component_port, configure_for_sin
 # Import A2A and MCP endpoints
 from .a2a_endpoints import router as a2a_router
 from .mcp_endpoints import router as mcp_router
+from .fastmcp_endpoints import fastmcp_router, fastmcp_startup, fastmcp_shutdown
 
 # Create terminal memory service as a global instance
 terminal_memory = MemoryService()
@@ -68,9 +69,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include A2A and MCP routers
+# Include A2A, MCP, and FastMCP routers
 app.include_router(a2a_router)
 app.include_router(mcp_router)
+app.include_router(fastmcp_router, prefix="/api/mcp/v2")  # Mount FastMCP router under /api/mcp/v2
 
 # ----- Models -----
 
@@ -606,5 +608,18 @@ async def websocket_endpoint(websocket):
         logger.error(f"WebSocket error: {str(e)}")
     finally:
         await websocket.close()
+
+# Startup and shutdown event handlers
+@app.on_event("startup")
+async def startup_event():
+    """Initialize the app on startup."""
+    # Initialize FastMCP
+    await fastmcp_startup()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up on app shutdown."""
+    # Shut down FastMCP
+    await fastmcp_shutdown()
 
 # Run with: uvicorn ergon.api.app:app --host 0.0.0.0 --port 8002

@@ -11,6 +11,7 @@ basic_requirements = [
     "typer>=0.9.0",
     "rich>=13.3.5",
     "python-dotenv>=1.0.0",
+    "tekton-core>=0.1.0",
 ]
 
 # Try to read requirements.txt, but don't fail if it's not available
