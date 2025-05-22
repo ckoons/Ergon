@@ -13,7 +13,6 @@ from typing import Dict, List, Any, Optional, Union, Callable
 from datetime import datetime
 
 from tekton.mcp.fastmcp import mcp_tool, mcp_capability
-from tekton.mcp.fastmcp.utils import register_tools as register_tools_util
 
 # We'll use forward references for the Ergon types to avoid circular imports
 from ..a2a_client import A2AClient
@@ -1017,7 +1016,16 @@ async def register_tools(
         deps["a2a_client"] = a2a_client
     
     # Register tools with dependencies
-    results = await register_tools_util(tools, deps)
+    from tekton.mcp.fastmcp.utils.tooling import create_tool_registry, register_tools as register_tools_util
+    registry = create_tool_registry("ergon")
+    
+    # Create a simple component manager with dependencies
+    component_manager = type('ComponentManager', (), deps)()
+    
+    # Register all tools
+    await register_tools_util(registry, tools, component_manager)
+    
+    results = [{"success": True, "tool": tool.__name__} for tool in tools]
     
     return {
         "registered": len([r for r in results if r.get("success")]),
