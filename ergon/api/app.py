@@ -6,6 +6,7 @@ allowing external systems to interact with the agent builder.
 """
 
 import os
+import sys
 from typing import Dict, Any, List, Optional, Union
 from datetime import datetime
 import asyncio
@@ -18,6 +19,10 @@ from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Query, Pat
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+# Import Hermes registration utility
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "shared", "utils"))
+from hermes_registration import HermesRegistration, heartbeat_loop
 
 from ergon.core.database.engine import get_db_session, init_db
 from ergon.core.database.models import Agent, AgentFile, AgentTool, AgentExecution, AgentMessage, DocumentationPage
@@ -164,11 +169,16 @@ async def get_status():
 
 @app.get("/health")
 async def health_check():
-    """Get API health status."""
+    """Get API health status following Tekton standards."""
+    from tekton.utils.port_config import get_ergon_port
+    port = get_ergon_port()
+    
     return {
-        "status": "ok",
-        "timestamp": datetime.now().isoformat(),
-        "version": "0.1.0"
+        "status": "healthy",
+        "component": "ergon",
+        "version": "0.1.0",
+        "port": port,
+        "message": "Ergon is running normally"
     }
 
 @app.get("/api/agents", response_model=List[AgentResponse])
@@ -613,12 +623,42 @@ async def websocket_endpoint(websocket):
 @app.on_event("startup")
 async def startup_event():
     """Initialize the app on startup."""
+    # Register with Hermes
+    from tekton.utils.port_config import get_ergon_port
+    port = get_ergon_port()
+    
+    hermes_registration = HermesRegistration()
+    await hermes_registration.register_component(
+        component_name="ergon",
+        port=port,
+        version="0.1.0",
+        capabilities=[
+            "agent_creation",
+            "agent_execution",
+            "memory_integration",
+            "specialized_tasks"
+        ],
+        metadata={
+            "description": "Agent system for specialized task execution",
+            "category": "execution"
+        }
+    )
+    app.state.hermes_registration = hermes_registration
+    
+    # Start heartbeat task
+    if hermes_registration.is_registered:
+        asyncio.create_task(heartbeat_loop(hermes_registration, "ergon"))
+    
     # Initialize FastMCP
     await fastmcp_startup()
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Clean up on app shutdown."""
+    # Deregister from Hermes
+    if hasattr(app.state, "hermes_registration") and app.state.hermes_registration:
+        await app.state.hermes_registration.deregister("ergon")
+    
     # Shut down FastMCP
     await fastmcp_shutdown()
 
