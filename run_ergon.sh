@@ -34,7 +34,7 @@ mkdir -p "$HOME/.tekton/logs"
 # Error handling function
 handle_error() {
     echo -e "${RED}Error: $1${RESET}" >&2
-    ${TEKTON_ROOT}/scripts/tekton-register unregister --component ergon-core
+    ${TEKTON_ROOT}/scripts/tekton-register unregister --component ergon_core
     exit 1
 }
 
@@ -45,17 +45,17 @@ fi
 
 # Register with Hermes using tekton-register
 echo -e "${YELLOW}Registering Ergon Core with Hermes...${RESET}"
-${TEKTON_ROOT}/scripts/tekton-register register --component ergon-core --config ${TEKTON_ROOT}/config/components/ergon-core.yaml &
+${TEKTON_ROOT}/scripts/tekton-register register --component ergon_core --config ${TEKTON_ROOT}/config/components/ergon_core.yaml &
 REGISTER_PID=$!
 
 # Register Ergon Memory component
 echo -e "${YELLOW}Registering Ergon Memory with Hermes...${RESET}"
-${TEKTON_ROOT}/scripts/tekton-register register --component ergon-memory --config ${TEKTON_ROOT}/config/components/ergon-memory.yaml &
+${TEKTON_ROOT}/scripts/tekton-register register --component ergon_memory --config ${TEKTON_ROOT}/config/components/ergon_memory.yaml &
 MEMORY_REGISTER_PID=$!
 
 # Register Ergon Workflow component
 echo -e "${YELLOW}Registering Ergon Workflow with Hermes...${RESET}"
-${TEKTON_ROOT}/scripts/tekton-register register --component ergon-workflow --config ${TEKTON_ROOT}/config/components/ergon-workflow.yaml &
+${TEKTON_ROOT}/scripts/tekton-register register --component ergon_workflow --config ${TEKTON_ROOT}/config/components/ergon_workflow.yaml &
 WORKFLOW_REGISTER_PID=$!
 
 # Give registration a moment to complete
@@ -63,11 +63,11 @@ sleep 2
 
 # Start the Ergon service
 echo -e "${YELLOW}Starting Ergon API server...${RESET}"
-python -m ergon.api.app --port $ERGON_PORT > "$HOME/.tekton/logs/ergon.log" 2>&1 &
+uvicorn ergon.api.app:app --host 0.0.0.0 --port $ERGON_PORT > "$HOME/.tekton/logs/ergon.log" 2>&1 &
 ERGON_PID=$!
 
 # Trap signals for graceful shutdown
-trap "${TEKTON_ROOT}/scripts/tekton-register unregister --component ergon-core; ${TEKTON_ROOT}/scripts/tekton-register unregister --component ergon-memory; ${TEKTON_ROOT}/scripts/tekton-register unregister --component ergon-workflow; kill $ERGON_PID 2>/dev/null; exit" EXIT SIGINT SIGTERM
+trap "${TEKTON_ROOT}/scripts/tekton-register unregister --component ergon_core; ${TEKTON_ROOT}/scripts/tekton-register unregister --component ergon_memory; ${TEKTON_ROOT}/scripts/tekton-register unregister --component ergon_workflow; kill $ERGON_PID 2>/dev/null; exit" EXIT SIGINT SIGTERM
 
 # Wait for the server to start
 echo -e "${YELLOW}Waiting for Ergon to start...${RESET}"
