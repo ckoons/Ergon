@@ -1,45 +1,15 @@
-# Core dependencies
-pydantic>=2.4.0
-pydantic-settings>=2.0.0
-typer>=0.9.0
-rich>=13.3.5
-python-dotenv>=1.0.0
+# Ergon requirements - Agent coordination and workflow orchestration
+# This component manages multi-agent workflows and task coordination
 
-# Engram - Required for full memory persistence functionality 
-# Install from source with:
-# pip install -e /Users/cskoons/projects/github/Engram
-# Or use our convenient script: ./scripts/install_engram.sh
+# Core requirements
+-r ../shared/requirements/base.txt
+-r ../shared/requirements/web.txt
+-r ../shared/requirements/database.txt
+-r ../shared/requirements/ai.txt
+-r ../shared/requirements/utilities.txt
 
-# Vector search dependencies - installed with Engram
-# Do not install directly - these will be loaded from tekton-core
-# faiss-cpu>=1.7.4
-# qdrant-client>=1.7.0
-# sentence-transformers>=2.2.2
-
-# Database
-SQLAlchemy>=2.0.0
-alembic>=1.12.0
-nltk>=3.8.1
-
-# API/Web
-fastapi>=0.105.0
-uvicorn>=0.23.0
+# Additional component-specific dependencies
 streamlit>=1.31.0
-httpx>=0.24.0
-beautifulsoup4>=4.12.0
-
-# AI/ML
-pydantic-ai>=0.0.35
-langchain>=0.1.0
-langchain-community>=0.0.10
-openai>=1.1.0
-anthropic>=0.10.0,<1.0.0
-sentence-transformers>=2.2.2
-
-# Tekton integration
-tekton-llm-client>=1.0.0
-tekton-core>=0.1.0
-jinja2>=3.1.2
 
 # External Services
 PyGithub>=2.1.1
@@ -48,10 +18,9 @@ google-auth-httplib2>=0.1.1
 google-auth-oauthlib>=1.1.0
 msal>=1.28.0
 
-# Testing
-pytest>=7.4.0
-pytest-asyncio>=0.21.1
+# Tekton integration
+tekton-llm-client>=1.0.0
+tekton-core>=0.1.0
 
-# Utilities
-tqdm>=4.66.0
-loguru>=0.7.0
+# Testing (development only)
+-r ../shared/requirements/dev.txt
