@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     tekton_home: Path = Field(default_factory=lambda: Path.home() / ".tekton")
     
     # Database settings
-    database_url: str = "sqlite:///ergon.db"
+    database_url: str = Field(default_factory=lambda: f"sqlite:///{Path(__file__).parent.parent.parent.parent.absolute()}/ergon.db")
     vector_db_path: str = Field(default_factory=lambda: str(Path.home() / ".tekton" / "vector_store"))
     data_dir: str = Field(default_factory=lambda: str(Path.home() / ".tekton" / "data"))
     
