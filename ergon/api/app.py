@@ -158,6 +158,17 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"Error shutting down FastMCP: {e}")
     
+    async def cleanup_heartbeat():
+        """Cancel heartbeat task if running"""
+        if heartbeat_task and not heartbeat_task.done():
+            heartbeat_task.cancel()
+            try:
+                await heartbeat_task
+            except asyncio.CancelledError:
+                pass
+            logger.info("Heartbeat task cancelled")
+    
+    shutdown.register_cleanup(cleanup_heartbeat)
     shutdown.register_cleanup(cleanup_hermes)
     shutdown.register_cleanup(cleanup_fastmcp)
     
@@ -191,6 +202,13 @@ app.add_middleware(
 app.include_router(a2a_router)
 app.include_router(mcp_router)
 app.include_router(fastmcp_router, prefix="/api/mcp/v2")  # Mount FastMCP router under /api/mcp/v2
+
+# Add shutdown endpoint
+try:
+    from shared.utils.shutdown_endpoint import add_shutdown_endpoint_to_app
+    add_shutdown_endpoint_to_app(app, "ergon")
+except ImportError:
+    logger.warning("Shutdown endpoint module not available")
 
 # ----- Models -----
 
@@ -734,3 +752,12 @@ async def websocket_endpoint(websocket):
 
 
 # Run with: uvicorn ergon.api.app:app --host 0.0.0.0 --port 8002
+
+if __name__ == "__main__":
+    import uvicorn
+    import os
+    
+    # Get port from environment variable or use default
+    port = int(os.environ.get("ERGON_PORT", "8002"))
+    
+    uvicorn.run(app, host="0.0.0.0", port=port)

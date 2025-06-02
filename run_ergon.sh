@@ -25,7 +25,6 @@ fi
 cd "$SCRIPT_DIR"
 
 # Set environment variables
-export ERGON_PORT=8002
 export PYTHONPATH="$SCRIPT_DIR:$TEKTON_ROOT:$PYTHONPATH"
 
 # Create log directories
@@ -63,7 +62,7 @@ sleep 2
 
 # Start the Ergon service
 echo -e "${YELLOW}Starting Ergon API server...${RESET}"
-uvicorn ergon.api.app:app --host 0.0.0.0 --port $ERGON_PORT > "$HOME/.tekton/logs/ergon.log" 2>&1 &
+python -m ergon.api.app > "$HOME/.tekton/logs/ergon.log" 2>&1 &
 ERGON_PID=$!
 
 # Trap signals for graceful shutdown
