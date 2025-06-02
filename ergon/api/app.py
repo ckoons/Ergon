@@ -14,6 +14,7 @@ import time
 import json
 from enum import Enum
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Query, Path, Body
 from fastapi.responses import StreamingResponse
@@ -25,8 +26,13 @@ tekton_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'
 if tekton_root not in sys.path:
     sys.path.insert(0, tekton_root)
 
-# Import Hermes registration utility with correct path
+# Import shared utils
 from shared.utils.hermes_registration import HermesRegistration, heartbeat_loop
+from shared.utils.logging_setup import setup_component_logging
+from shared.utils.env_config import get_component_config
+from shared.utils.errors import StartupError
+from shared.utils.startup import component_startup, StartupMetrics
+from shared.utils.shutdown import GracefulShutdown
 
 from ergon.core.database.engine import get_db_session, init_db
 from ergon.core.database.models import Agent, AgentFile, AgentTool, AgentExecution, AgentMessage, DocumentationPage
@@ -47,9 +53,8 @@ from .fastmcp_endpoints import fastmcp_router, fastmcp_startup, fastmcp_shutdown
 # Create terminal memory service as a global instance
 terminal_memory = MemoryService()
 
-# Configure logger
-logger = logging.getLogger(__name__)
-logger.setLevel(getattr(logging, settings.log_level.value))
+# Use shared logger
+logger = setup_component_logging("ergon")
 
 # Initialize memory service
 memory_service = MemoryService()
@@ -62,11 +67,115 @@ if not os.path.exists(settings.database_url.replace("sqlite:///", "")):
 port_config = configure_for_single_port()
 logger.info(f"Ergon API configured with port {port_config['port']}")
 
+# Global state for Hermes registration
+hermes_registration = None
+heartbeat_task = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for Ergon"""
+    global hermes_registration, heartbeat_task
+    
+    # Startup
+    logger.info("Starting Ergon API")
+    
+    async def ergon_startup():
+        """Ergon-specific startup logic"""
+        try:
+            # Get configuration
+            config = get_component_config()
+            port = config.ergon.port if hasattr(config, 'ergon') else int(os.environ.get("ERGON_PORT", 8002))
+            
+            # Register with Hermes
+            global hermes_registration, heartbeat_task
+            hermes_registration = HermesRegistration()
+            
+            logger.info(f"Attempting to register Ergon with Hermes on port {port}")
+            is_registered = await hermes_registration.register_component(
+                component_name="ergon",
+                port=port,
+                version="0.1.0",
+                capabilities=[
+                    "agent_creation",
+                    "agent_execution",
+                    "memory_integration",
+                    "specialized_tasks"
+                ],
+                metadata={
+                    "description": "Agent system for specialized task execution",
+                    "category": "execution"
+                }
+            )
+            
+            if is_registered:
+                logger.info("Successfully registered with Hermes")
+                # Start heartbeat task
+                heartbeat_task = asyncio.create_task(
+                    heartbeat_loop(hermes_registration, "ergon", interval=30)
+                )
+                logger.info("Started Hermes heartbeat task")
+            else:
+                logger.warning("Failed to register with Hermes - continuing without registration")
+            
+            # Initialize FastMCP
+            await fastmcp_startup()
+            logger.info("FastMCP initialized")
+            
+        except Exception as e:
+            logger.error(f"Error during Ergon startup: {e}", exc_info=True)
+            raise StartupError(str(e), "ergon", "STARTUP_FAILED")
+    
+    # Execute startup with metrics
+    try:
+        metrics = await component_startup("ergon", ergon_startup, timeout=30)
+        logger.info(f"Ergon started successfully in {metrics.total_time:.2f}s")
+    except Exception as e:
+        logger.error(f"Failed to start Ergon: {e}")
+        raise
+    
+    # Create shutdown handler
+    shutdown = GracefulShutdown("ergon")
+    
+    # Register cleanup tasks
+    async def cleanup_hermes():
+        """Cleanup Hermes registration"""
+        if heartbeat_task:
+            heartbeat_task.cancel()
+            try:
+                await heartbeat_task
+            except asyncio.CancelledError:
+                pass
+        
+        if hermes_registration and hermes_registration.is_registered:
+            await hermes_registration.deregister("ergon")
+            logger.info("Deregistered from Hermes")
+    
+    async def cleanup_fastmcp():
+        """Cleanup FastMCP"""
+        try:
+            await fastmcp_shutdown()
+            logger.info("FastMCP shut down")
+        except Exception as e:
+            logger.warning(f"Error shutting down FastMCP: {e}")
+    
+    shutdown.register_cleanup(cleanup_hermes)
+    shutdown.register_cleanup(cleanup_fastmcp)
+    
+    yield
+    
+    # Shutdown
+    logger.info("Shutting down Ergon API")
+    await shutdown.shutdown_sequence(timeout=10)
+    
+    # Socket release delay for macOS
+    await asyncio.sleep(0.5)
+
 # Create FastAPI app
 app = FastAPI(
     title="Ergon API",
     description="REST API for the Ergon AI agent builder and A2A/MCP services",
-    version="0.1.0"
+    version="0.1.0",
+    lifespan=lifespan
 )
 
 # Add CORS middleware
@@ -623,47 +732,5 @@ async def websocket_endpoint(websocket):
     finally:
         await websocket.close()
 
-# Startup and shutdown event handlers
-@app.on_event("startup")
-async def startup_event():
-    """Initialize the app on startup."""
-    # Register with Hermes
-    from tekton.utils.port_config import get_ergon_port
-    port = get_ergon_port()
-    
-    hermes_registration = HermesRegistration()
-    await hermes_registration.register_component(
-        component_name="ergon",
-        port=port,
-        version="0.1.0",
-        capabilities=[
-            "agent_creation",
-            "agent_execution",
-            "memory_integration",
-            "specialized_tasks"
-        ],
-        metadata={
-            "description": "Agent system for specialized task execution",
-            "category": "execution"
-        }
-    )
-    app.state.hermes_registration = hermes_registration
-    
-    # Start heartbeat task
-    if hermes_registration.is_registered:
-        asyncio.create_task(heartbeat_loop(hermes_registration, "ergon"))
-    
-    # Initialize FastMCP
-    await fastmcp_startup()
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Clean up on app shutdown."""
-    # Deregister from Hermes
-    if hasattr(app.state, "hermes_registration") and app.state.hermes_registration:
-        await app.state.hermes_registration.deregister("ergon")
-    
-    # Shut down FastMCP
-    await fastmcp_shutdown()
 
 # Run with: uvicorn ergon.api.app:app --host 0.0.0.0 --port 8002
