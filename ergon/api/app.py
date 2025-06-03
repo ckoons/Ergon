@@ -203,12 +203,6 @@ app.include_router(a2a_router)
 app.include_router(mcp_router)
 app.include_router(fastmcp_router, prefix="/api/mcp/v2")  # Mount FastMCP router under /api/mcp/v2
 
-# Add shutdown endpoint
-try:
-    from shared.utils.shutdown_endpoint import add_shutdown_endpoint_to_app
-    add_shutdown_endpoint_to_app(app, "ergon")
-except ImportError:
-    logger.warning("Shutdown endpoint module not available")
 
 # ----- Models -----
 
