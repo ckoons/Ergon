@@ -62,7 +62,7 @@ sleep 2
 
 # Start the Ergon service
 echo -e "${YELLOW}Starting Ergon API server...${RESET}"
-python -m ergon.api.app > "$HOME/.tekton/logs/ergon.log" 2>&1 &
+python -m ergon > "$HOME/.tekton/logs/ergon.log" 2>&1 &
 ERGON_PID=$!
 
 # Trap signals for graceful shutdown
