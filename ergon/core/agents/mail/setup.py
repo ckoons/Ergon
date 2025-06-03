@@ -12,6 +12,7 @@ import asyncio
 from typing import Dict, Any, Optional
 
 from ergon.utils.config.settings import settings
+from ergon.utils.tekton_integration import get_component_url
 
 # Import providers
 from ergon.core.agents.mail.providers import get_mail_provider
@@ -248,7 +249,8 @@ async def setup_outlook_oauth() -> Dict[str, Any]:
         print("\nInstructions:")
         print("1. Go to https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade")
         print("2. Register a new application")
-        print("3. Add redirect URI: http://localhost:8000/auth/outlook/callback")
+        redirect_uri = f"{get_component_url('ergon', '/auth/outlook/callback')}"
+        print(f"3. Add redirect URI: {redirect_uri}")
         print("4. Add Microsoft Graph permissions: Mail.Read, Mail.Send, Mail.ReadWrite")
         print("5. Get the client ID (Application ID)")
         

@@ -19,7 +19,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Query, Path, Body
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import Field
+from tekton.models.base import TektonBaseModel
 
 # Add Tekton root to path if not already present
 tekton_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -84,7 +85,7 @@ async def lifespan(app: FastAPI):
         try:
             # Get configuration
             config = get_component_config()
-            port = config.ergon.port if hasattr(config, 'ergon') else int(os.environ.get("ERGON_PORT", 8002))
+            port = config.ergon.port if hasattr(config, 'ergon') else int(os.environ.get("ERGON_PORT"))
             
             # Register with Hermes
             global hermes_registration, heartbeat_task
@@ -206,7 +207,7 @@ app.include_router(fastmcp_router, prefix="/api/mcp/v2")  # Mount FastMCP router
 
 # ----- Models -----
 
-class AgentCreate(BaseModel):
+class AgentCreate(TektonBaseModel):
     """Model for creating a new agent."""
     name: str = Field(..., description="Name of the agent")
     description: str = Field(..., description="Description of the agent")
@@ -214,7 +215,7 @@ class AgentCreate(BaseModel):
     tools: Optional[List[Dict[str, Any]]] = Field(None, description="List of tools for the agent")
     temperature: float = Field(0.7, description="Temperature for generation (0-1)")
 
-class AgentResponse(BaseModel):
+class AgentResponse(TektonBaseModel):
     """Model for agent response."""
     id: int
     name: str
@@ -224,18 +225,18 @@ class AgentResponse(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-class MessageCreate(BaseModel):
+class MessageCreate(TektonBaseModel):
     """Model for creating a new message."""
     content: str = Field(..., description="Content of the message")
     stream: bool = Field(False, description="Whether to stream the response")
 
-class MessageResponse(BaseModel):
+class MessageResponse(TektonBaseModel):
     """Model for message response."""
     role: str
     content: str
     timestamp: datetime
 
-class StatusResponse(BaseModel):
+class StatusResponse(TektonBaseModel):
     """Model for status response."""
     status: str
     version: str
@@ -245,18 +246,18 @@ class StatusResponse(BaseModel):
     port: int
     single_port_enabled: bool
 
-class DocCrawlRequest(BaseModel):
+class DocCrawlRequest(TektonBaseModel):
     """Model for doc crawl request."""
     source: str = Field(..., description="Source to crawl ('all', 'pydantic', 'langchain', 'anthropic')")
     max_pages: int = Field(100, description="Maximum number of pages to crawl")
 
-class DocCrawlResponse(BaseModel):
+class DocCrawlResponse(TektonBaseModel):
     """Model for doc crawl response."""
     status: str
     pages_crawled: int
     source: str
     
-class TerminalMessageRequest(BaseModel):
+class TerminalMessageRequest(TektonBaseModel):
     """Model for terminal message request."""
     message: str = Field(..., description="Message content")
     context_id: str = Field("ergon", description="Context ID (e.g., 'ergon', 'awt-team')")
@@ -266,7 +267,7 @@ class TerminalMessageRequest(BaseModel):
     streaming: bool = Field(True, description="Whether to stream the response")
     save_to_memory: bool = Field(True, description="Whether to save message to memory")
     
-class TerminalMessageResponse(BaseModel):
+class TerminalMessageResponse(TektonBaseModel):
     """Model for terminal message response."""
     status: str
     message: Optional[str] = None
@@ -745,7 +746,7 @@ async def websocket_endpoint(websocket):
         await websocket.close()
 
 
-# Run with: uvicorn ergon.api.app:app --host 0.0.0.0 --port 8002
+# Run with: uvicorn ergon.api.app:app --host 0.0.0.0 --port $ERGON_PORT (default: 8002)
 
 if __name__ == "__main__":
     import uvicorn

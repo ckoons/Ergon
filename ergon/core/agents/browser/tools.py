@@ -1,10 +1,23 @@
 import os
+import sys
 import asyncio
 from typing import Dict, List, Optional, Any
-from pydantic import BaseModel, Field
+
+# Try to import TektonBaseModel, fall back to regular BaseModel if not available
+try:
+    # Add Tekton root to path if not already present
+    tekton_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', '..'))
+    if tekton_root not in sys.path:
+        sys.path.insert(0, tekton_root)
+    from tekton.models.base import TektonBaseModel
+except ImportError:
+    # Fallback to regular BaseModel if TektonBaseModel is not available
+    from pydantic import BaseModel as TektonBaseModel
+
+from pydantic import Field
 import json
 
-class BrowserActions(BaseModel):
+class BrowserActions(TektonBaseModel):
     navigate: str = Field(..., description="Navigate to a specific URL")
     get_text: str = Field(..., description="Get visible text from the current page")
     get_html: str = Field(..., description="Get HTML from the current page")

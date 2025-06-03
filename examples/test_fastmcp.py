@@ -18,6 +18,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 
 from ergon.core.a2a_client import A2AClient
+from ergon.utils.tekton_integration import get_component_api_url
 from ergon.core.mcp import (
     # Agent tools
     create_agent, update_agent, delete_agent, get_agent, list_agents,
@@ -295,7 +296,7 @@ async def test_api_endpoints():
     print("\n--- Testing FastMCP API Endpoints ---")
     
     # Base URL for FastMCP endpoints
-    base_url = "http://localhost:8003/api/mcp/v2"
+    base_url = f"{get_component_api_url('rhetor')}/mcp/v2"
     
     try:
         async with httpx.AsyncClient() as client:

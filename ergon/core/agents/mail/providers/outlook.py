@@ -16,6 +16,7 @@ from msal import PublicClientApplication, SerializableTokenCache
 
 from ergon.utils.config.settings import settings
 from ergon.core.agents.mail.providers.base import MailProvider
+from ergon.utils.tekton_integration import get_component_url
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -41,7 +42,7 @@ class OutlookProvider(MailProvider):
     def __init__(self, 
                  client_id: Optional[str] = None, 
                  token_file: Optional[str] = None,
-                 redirect_uri: str = "http://localhost:8000/auth/outlook/callback"):
+                 redirect_uri: Optional[str] = None):
         """
         Initialize Outlook provider.
         
@@ -53,7 +54,7 @@ class OutlookProvider(MailProvider):
         self.client_id = client_id or settings.outlook_client_id
         self.token_file = token_file or os.path.join(
             settings.config_path, "outlook_token.json")
-        self.redirect_uri = redirect_uri
+        self.redirect_uri = redirect_uri or f"{get_component_url('ergon', '/auth/outlook/callback')}"
         self.app = None
         self.token_cache = SerializableTokenCache()
         self.access_token = None

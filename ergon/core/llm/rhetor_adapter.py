@@ -10,6 +10,7 @@ import logging
 import asyncio
 from typing import Dict, Any, List, Optional, Union, Callable, AsyncGenerator
 import uuid
+from ergon.utils.tekton_integration import get_component_api_url
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ class RhetorLLMAdapter:
         self.model_name = model_name or os.environ.get("RHETOR_DEFAULT_MODEL", "claude-3-sonnet-20240229")
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.rhetor_url = rhetor_url or os.environ.get("RHETOR_API_URL", "http://localhost:8003")
+        self.rhetor_url = rhetor_url or os.environ.get("RHETOR_API_URL", get_component_api_url("rhetor"))
         self.client = None
         self.rhetor_client = None
     
