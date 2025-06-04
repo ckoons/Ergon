@@ -14,10 +14,9 @@ import time
 import json
 from enum import Enum
 import logging
-from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Query, Path, Body
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import Field
 from tekton.models.base import TektonBaseModel
@@ -33,7 +32,16 @@ from shared.utils.logging_setup import setup_component_logging
 from shared.utils.env_config import get_component_config
 from shared.utils.errors import StartupError
 from shared.utils.startup import component_startup, StartupMetrics
-from shared.utils.shutdown import GracefulShutdown
+from shared.utils.shutdown import GracefulShutdown, component_lifespan
+from shared.utils.health_check import create_health_response
+from shared.api import (
+    create_standard_routers,
+    mount_standard_routers,
+    create_ready_endpoint,
+    create_discovery_endpoint,
+    get_openapi_configuration,
+    EndpointInfo
+)
 
 from ergon.core.database.engine import get_db_session, init_db
 from ergon.core.database.models import Agent, AgentFile, AgentTool, AgentExecution, AgentMessage, DocumentationPage
@@ -57,6 +65,13 @@ terminal_memory = MemoryService()
 # Use shared logger
 logger = setup_component_logging("ergon")
 
+# Component configuration
+COMPONENT_NAME = "ergon"
+COMPONENT_VERSION = "0.1.0"
+COMPONENT_DESCRIPTION = "Agent system for specialized task execution"
+start_time = None
+is_registered_with_hermes = False
+
 # Initialize memory service
 memory_service = MemoryService()
 
@@ -72,122 +87,98 @@ logger.info(f"Ergon API configured with port {port_config['port']}")
 hermes_registration = None
 heartbeat_task = None
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Lifespan context manager for Ergon"""
-    global hermes_registration, heartbeat_task
+# Define startup and cleanup functions for lifespan
+async def startup_tasks():
+    """Initialize Ergon services."""
+    global hermes_registration, heartbeat_task, start_time, is_registered_with_hermes
+    import time
+    start_time = time.time()
     
-    # Startup
     logger.info("Starting Ergon API")
     
-    async def ergon_startup():
-        """Ergon-specific startup logic"""
-        try:
-            # Get configuration
-            config = get_component_config()
-            port = config.ergon.port if hasattr(config, 'ergon') else int(os.environ.get("ERGON_PORT"))
-            
-            # Register with Hermes
-            global hermes_registration, heartbeat_task
-            hermes_registration = HermesRegistration()
-            
-            logger.info(f"Attempting to register Ergon with Hermes on port {port}")
-            is_registered = await hermes_registration.register_component(
-                component_name="ergon",
-                port=port,
-                version="0.1.0",
-                capabilities=[
-                    "agent_creation",
-                    "agent_execution",
-                    "memory_integration",
-                    "specialized_tasks"
-                ],
-                metadata={
-                    "description": "Agent system for specialized task execution",
-                    "category": "execution"
-                }
-            )
-            
-            if is_registered:
-                logger.info("Successfully registered with Hermes")
-                # Start heartbeat task
-                heartbeat_task = asyncio.create_task(
-                    heartbeat_loop(hermes_registration, "ergon", interval=30)
-                )
-                logger.info("Started Hermes heartbeat task")
-            else:
-                logger.warning("Failed to register with Hermes - continuing without registration")
-            
-            # Initialize FastMCP
-            await fastmcp_startup()
-            logger.info("FastMCP initialized")
-            
-        except Exception as e:
-            logger.error(f"Error during Ergon startup: {e}", exc_info=True)
-            raise StartupError(str(e), "ergon", "STARTUP_FAILED")
-    
-    # Execute startup with metrics
     try:
-        metrics = await component_startup("ergon", ergon_startup, timeout=30)
-        logger.info(f"Ergon started successfully in {metrics.total_time:.2f}s")
-    except Exception as e:
-        logger.error(f"Failed to start Ergon: {e}")
-        raise
-    
-    # Create shutdown handler
-    shutdown = GracefulShutdown("ergon")
-    
-    # Register cleanup tasks
-    async def cleanup_hermes():
-        """Cleanup Hermes registration"""
-        if heartbeat_task:
-            heartbeat_task.cancel()
-            try:
-                await heartbeat_task
-            except asyncio.CancelledError:
-                pass
+        # Get configuration
+        config = get_component_config()
+        port = config.ergon.port if hasattr(config, 'ergon') else int(os.environ.get("ERGON_PORT"))
         
-        if hermes_registration and hermes_registration.is_registered:
-            await hermes_registration.deregister("ergon")
-            logger.info("Deregistered from Hermes")
-    
-    async def cleanup_fastmcp():
-        """Cleanup FastMCP"""
-        try:
-            await fastmcp_shutdown()
-            logger.info("FastMCP shut down")
-        except Exception as e:
-            logger.warning(f"Error shutting down FastMCP: {e}")
-    
-    async def cleanup_heartbeat():
-        """Cancel heartbeat task if running"""
-        if heartbeat_task and not heartbeat_task.done():
-            heartbeat_task.cancel()
-            try:
-                await heartbeat_task
-            except asyncio.CancelledError:
-                pass
-            logger.info("Heartbeat task cancelled")
-    
-    shutdown.register_cleanup(cleanup_heartbeat)
-    shutdown.register_cleanup(cleanup_hermes)
-    shutdown.register_cleanup(cleanup_fastmcp)
-    
-    yield
-    
-    # Shutdown
-    logger.info("Shutting down Ergon API")
-    await shutdown.shutdown_sequence(timeout=10)
-    
-    # Socket release delay for macOS
-    await asyncio.sleep(0.5)
+        # Register with Hermes
+        hermes_registration = HermesRegistration()
+        
+        logger.info(f"Attempting to register Ergon with Hermes on port {port}")
+        is_registered_with_hermes = await hermes_registration.register_component(
+            component_name=COMPONENT_NAME,
+            port=port,
+            version=COMPONENT_VERSION,
+            capabilities=[
+                "agent_creation",
+                "agent_execution",
+                "memory_integration",
+                "specialized_tasks"
+            ],
+            metadata={
+                "description": COMPONENT_DESCRIPTION,
+                "category": "execution"
+            }
+        )
+        
+        if is_registered_with_hermes:
+            logger.info("Successfully registered with Hermes")
+            # Start heartbeat task
+            heartbeat_task = asyncio.create_task(
+                heartbeat_loop(hermes_registration, COMPONENT_NAME, interval=30)
+            )
+            logger.info("Started Hermes heartbeat task")
+        else:
+            logger.warning("Failed to register with Hermes - continuing without registration")
+        
+        # Initialize FastMCP
+        await fastmcp_startup()
+        logger.info("FastMCP initialized")
+        
+    except Exception as e:
+        logger.error(f"Error during Ergon startup: {e}", exc_info=True)
+        raise StartupError(str(e), COMPONENT_NAME, "STARTUP_FAILED")
 
-# Create FastAPI app
+async def cleanup_tasks():
+    """Cleanup Ergon resources."""
+    global heartbeat_task
+    logger.info("Shutting down Ergon API")
+    
+    # Cancel heartbeat task
+    if heartbeat_task:
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            pass
+    
+    # Deregister from Hermes
+    if hermes_registration and is_registered_with_hermes:
+        await hermes_registration.deregister(COMPONENT_NAME)
+        logger.info("Deregistered from Hermes")
+    
+    # Cleanup FastMCP
+    try:
+        await fastmcp_shutdown()
+        logger.info("FastMCP shut down")
+    except Exception as e:
+        logger.warning(f"Error shutting down FastMCP: {e}")
+    
+    logger.info("Ergon API server shutdown complete")
+
+# Create FastAPI app with proper URL paths following Single Port Architecture
 app = FastAPI(
-    title="Ergon API",
-    description="REST API for the Ergon AI agent builder and A2A/MCP services",
-    version="0.1.0",
-    lifespan=lifespan
+    **get_openapi_configuration(
+        component_name=COMPONENT_NAME,
+        component_version=COMPONENT_VERSION,
+        component_description=COMPONENT_DESCRIPTION
+    ),
+    lifespan=component_lifespan(
+        COMPONENT_NAME,
+        startup_tasks,
+        [cleanup_tasks],
+        port=int(os.environ.get("ERGON_PORT", 8002))
+    )
 )
 
 # Add CORS middleware
@@ -199,10 +190,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include A2A, MCP, and FastMCP routers
-app.include_router(a2a_router)
-app.include_router(mcp_router)
-app.include_router(fastmcp_router, prefix="/api/mcp/v2")  # Mount FastMCP router under /api/mcp/v2
+# Create standard routers
+routers = create_standard_routers(COMPONENT_NAME)
+
+# Add exception handlers
+@app.exception_handler(Exception)
+async def general_exception_handler(request, exc):
+    """Handle general exceptions."""
+    logger.error(f"General error: {str(exc)}")
+    return JSONResponse(
+        status_code=500,
+        content={"error": "Internal server error", "detail": str(exc)}
+    )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request, exc):
+    """Handle HTTP exceptions."""
+    logger.error(f"HTTP error {exc.status_code}: {exc.detail}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": exc.detail}
+    )
 
 
 # ----- Models -----
@@ -274,10 +282,86 @@ class TerminalMessageResponse(TektonBaseModel):
     error: Optional[str] = None
     context_id: str
 
-# ----- Routes -----
+# ----- Standard Routes -----
 
-@app.get("/api", response_model=StatusResponse)
-@app.get("/", response_model=StatusResponse)
+# Health check endpoint
+@routers.root.get("/health")
+async def health_check():
+    """Get API health status following Tekton standards."""
+    from tekton.utils.port_config import get_ergon_port
+    port = get_ergon_port()
+    
+    # Use standardized health response
+    return create_health_response(
+        component_name=COMPONENT_NAME,
+        port=port,
+        version=COMPONENT_VERSION,
+        status="healthy",
+        registered=is_registered_with_hermes,
+        details={
+            "services": ["agent_creation", "agent_execution", "memory_integration"]
+        }
+    )
+
+# Root endpoint
+@routers.root.get("/")
+async def root():
+    """Root endpoint with basic information."""
+    return {
+        "component": COMPONENT_NAME,
+        "description": COMPONENT_DESCRIPTION,
+        "version": COMPONENT_VERSION,
+        "status": "active"
+    }
+
+# Add ready endpoint
+routers.root.add_api_route(
+    "/ready",
+    create_ready_endpoint(
+        component_name=COMPONENT_NAME,
+        component_version=COMPONENT_VERSION,
+        start_time=start_time or 0,
+        readiness_check=lambda: is_registered_with_hermes
+    ),
+    methods=["GET"]
+)
+
+# Add discovery endpoint
+routers.v1.add_api_route(
+    "/discovery",
+    create_discovery_endpoint(
+        component_name=COMPONENT_NAME,
+        component_version=COMPONENT_VERSION,
+        component_description=COMPONENT_DESCRIPTION,
+        endpoints=[
+            EndpointInfo(path="/api/v1/agents", method="*", description="Agent management"),
+            EndpointInfo(path="/api/v1/agents/{agent_id}", method="*", description="Agent operations"),
+            EndpointInfo(path="/api/v1/agents/{agent_id}/run", method="POST", description="Run agent"),
+            EndpointInfo(path="/api/v1/docs/crawl", method="POST", description="Crawl documentation"),
+            EndpointInfo(path="/api/v1/docs/search", method="GET", description="Search documentation"),
+            EndpointInfo(path="/api/v1/terminal/message", method="POST", description="Terminal message"),
+            EndpointInfo(path="/api/v1/terminal/stream", method="POST", description="Terminal streaming")
+        ],
+        capabilities=[
+            "agent_creation",
+            "agent_execution",
+            "memory_integration",
+            "specialized_tasks"
+        ],
+        dependencies={
+            "hermes": "http://localhost:8001"
+        },
+        metadata={
+            "documentation": "/api/v1/docs",
+            "database": "enabled",
+            "fastmcp": "enabled"
+        }
+    ),
+    methods=["GET"]
+)
+
+# Legacy status endpoint for backward compatibility
+@routers.v1.get("/status", response_model=StatusResponse)
 async def get_status():
     """Get API status."""
     with get_db_session() as db:
@@ -285,7 +369,7 @@ async def get_status():
         
     return {
         "status": "ok",
-        "version": "0.1.0",
+        "version": COMPONENT_VERSION,
         "database": os.path.exists(settings.database_url.replace("sqlite:///", "")),
         "models": settings.available_models,
         "doc_count": doc_count,
@@ -293,21 +377,9 @@ async def get_status():
         "single_port_enabled": True
     }
 
-@app.get("/health")
-async def health_check():
-    """Get API health status following Tekton standards."""
-    from tekton.utils.port_config import get_ergon_port
-    port = get_ergon_port()
-    
-    return {
-        "status": "healthy",
-        "component": "ergon",
-        "version": "0.1.0",
-        "port": port,
-        "message": "Ergon is running normally"
-    }
+# ----- Business Routes -----
 
-@app.get("/api/agents", response_model=List[AgentResponse])
+@routers.v1.get("/agents", response_model=List[AgentResponse])
 async def list_agents(
     skip: int = Query(0, description="Number of agents to skip"),
     limit: int = Query(100, description="Maximum number of agents to return")
@@ -317,7 +389,7 @@ async def list_agents(
         agents = db.query(Agent).offset(skip).limit(limit).all()
         return [agent.__dict__ for agent in agents]
 
-@app.post("/api/agents", response_model=AgentResponse)
+@routers.v1.post("/agents", response_model=AgentResponse)
 async def create_agent(agent_data: AgentCreate):
     """Create a new agent."""
     try:
@@ -375,7 +447,7 @@ async def create_agent(agent_data: AgentCreate):
         logger.error(f"Error creating agent: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error creating agent: {str(e)}")
 
-@app.get("/api/agents/{agent_id}", response_model=AgentResponse)
+@routers.v1.get("/agents/{agent_id}", response_model=AgentResponse)
 async def get_agent(agent_id: int = Path(..., description="ID of the agent")):
     """Get agent by ID."""
     with get_db_session() as db:
@@ -385,7 +457,7 @@ async def get_agent(agent_id: int = Path(..., description="ID of the agent")):
         
         return agent.__dict__
 
-@app.delete("/api/agents/{agent_id}")
+@routers.v1.delete("/agents/{agent_id}")
 async def delete_agent(agent_id: int = Path(..., description="ID of the agent")):
     """Delete agent by ID."""
     with get_db_session() as db:
@@ -398,7 +470,7 @@ async def delete_agent(agent_id: int = Path(..., description="ID of the agent"))
         
         return {"status": "deleted", "id": agent_id}
 
-@app.post("/api/agents/{agent_id}/run", response_model=MessageResponse)
+@routers.v1.post("/agents/{agent_id}/run", response_model=MessageResponse)
 async def run_agent(
     message: MessageCreate,
     agent_id: int = Path(..., description="ID of the agent")
@@ -480,7 +552,7 @@ async def run_agent(
         logger.error(f"Error running agent: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error running agent: {str(e)}")
 
-@app.post("/api/docs/crawl", response_model=DocCrawlResponse)
+@routers.v1.post("/docs/crawl", response_model=DocCrawlResponse)
 async def crawl_docs(request: DocCrawlRequest):
     """Crawl documentation from specified source."""
     try:
@@ -511,7 +583,7 @@ async def crawl_docs(request: DocCrawlRequest):
         logger.error(f"Error crawling docs: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error crawling docs: {str(e)}")
 
-@app.get("/api/docs/search")
+@routers.v1.get("/docs/search")
 async def search_docs(
     query: str = Query(..., description="Search query"),
     limit: int = Query(5, description="Maximum number of results to return")
@@ -544,7 +616,7 @@ async def search_docs(
         logger.error(f"Error searching docs: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error searching docs: {str(e)}")
 
-@app.post("/api/terminal/message", response_model=TerminalMessageResponse)
+@routers.v1.post("/terminal/message", response_model=TerminalMessageResponse)
 async def terminal_message(
     request: TerminalMessageRequest,
     background_tasks: BackgroundTasks
@@ -616,7 +688,7 @@ async def terminal_message(
             "context_id": request.context_id
         }
 
-@app.post("/api/terminal/stream")
+@routers.v1.post("/terminal/stream")
 async def terminal_stream(
     request: TerminalMessageRequest,
     background_tasks: BackgroundTasks
@@ -704,7 +776,20 @@ async def terminal_stream(
             media_type="text/event-stream"
         )
 
-# Add WebSocket endpoint for A2A and MCP
+# Mount standard routers
+mount_standard_routers(app, routers)
+
+# Include business routers (already included in v1 router)
+# The business endpoints are already defined with @routers.v1 decorators
+
+# Include A2A and MCP routers under v1
+routers.v1.include_router(a2a_router, prefix="/a2a", tags=["A2A"])
+routers.v1.include_router(mcp_router, prefix="/mcp", tags=["MCP"])
+
+# Include FastMCP router at its special path
+app.include_router(fastmcp_router, prefix="/api/mcp/v2")  # Mount FastMCP router under /api/mcp/v2
+
+# Add WebSocket endpoint for A2A and MCP (at root level)
 @app.websocket("/ws")
 async def websocket_endpoint(websocket):
     """WebSocket endpoint for A2A and MCP communication."""

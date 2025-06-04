@@ -18,7 +18,7 @@ from ..utils.tekton_integration import get_component_port
 logger = logging.getLogger(__name__)
 
 # Create API router
-router = APIRouter(prefix="/api/a2a", tags=["a2a"])
+router = APIRouter(tags=["a2a"])
 
 # Create shared A2A client
 a2a_client = A2AClient(

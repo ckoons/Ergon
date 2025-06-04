@@ -24,7 +24,7 @@ from ..utils.mcp_adapter import (
 logger = logging.getLogger(__name__)
 
 # Create API router
-router = APIRouter(prefix="/api/mcp", tags=["mcp"])
+router = APIRouter(tags=["mcp"])
 
 # Create shared MCP client
 mcp_client = MCPClient(client_id="ergon-api", client_name="Ergon API")
