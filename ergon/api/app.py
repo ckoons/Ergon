@@ -86,6 +86,7 @@ logger.info(f"Ergon API configured with port {port_config['port']}")
 # Global state for Hermes registration
 hermes_registration = None
 heartbeat_task = None
+mcp_bridge = None
 
 # Define startup and cleanup functions for lifespan
 async def startup_tasks():
@@ -135,6 +136,21 @@ async def startup_tasks():
         await fastmcp_startup()
         logger.info("FastMCP initialized")
         
+        # Initialize Hermes MCP Bridge
+        try:
+            from ergon.core.mcp.hermes_bridge import ErgonMCPBridge
+            from ergon.api.fastmcp_endpoints import get_a2a_client
+            
+            # Get the A2A client
+            a2a_client = await get_a2a_client()
+            
+            global mcp_bridge
+            mcp_bridge = ErgonMCPBridge(a2a_client)
+            await mcp_bridge.initialize()
+            logger.info("Initialized Hermes MCP Bridge for FastMCP tools")
+        except Exception as e:
+            logger.warning(f"Failed to initialize MCP Bridge: {e}")
+        
     except Exception as e:
         logger.error(f"Error during Ergon startup: {e}", exc_info=True)
         raise StartupError(str(e), COMPONENT_NAME, "STARTUP_FAILED")
@@ -163,6 +179,15 @@ async def cleanup_tasks():
         logger.info("FastMCP shut down")
     except Exception as e:
         logger.warning(f"Error shutting down FastMCP: {e}")
+    
+    # Cleanup MCP bridge
+    global mcp_bridge
+    if mcp_bridge:
+        try:
+            await mcp_bridge.shutdown()
+            logger.info("MCP bridge cleaned up")
+        except Exception as e:
+            logger.warning(f"Error cleaning up MCP bridge: {e}")
     
     logger.info("Ergon API server shutdown complete")
 
