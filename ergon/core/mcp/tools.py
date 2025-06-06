@@ -12,7 +12,22 @@ import uuid
 from typing import Dict, List, Any, Optional, Union, Callable
 from datetime import datetime
 
-from tekton.mcp.fastmcp import mcp_tool, mcp_capability
+# Check if FastMCP is available
+try:
+    from tekton.mcp.fastmcp import mcp_tool, mcp_capability
+    fastmcp_available = True
+except ImportError:
+    fastmcp_available = False
+    # Define dummy decorators
+    def mcp_tool(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
+    
+    def mcp_capability(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
 
 # We'll use forward references for the Ergon types to avoid circular imports
 from ..a2a_client import A2AClient
@@ -1032,3 +1047,35 @@ async def register_tools(
         "failed": len([r for r in results if not r.get("success")]),
         "results": results
     }
+
+
+def get_all_tools(a2a_client=None):
+    """Get all Ergon MCP tools."""
+    if not fastmcp_available:
+        logger.warning("FastMCP not available, returning empty tools list")
+        return []
+        
+    tools = []
+    
+    # Agent management tools
+    tools.append(create_agent._mcp_tool_meta.to_dict())
+    tools.append(update_agent._mcp_tool_meta.to_dict())
+    tools.append(delete_agent._mcp_tool_meta.to_dict())
+    tools.append(get_agent._mcp_tool_meta.to_dict())
+    tools.append(list_agents._mcp_tool_meta.to_dict())
+    
+    # Workflow management tools
+    tools.append(create_workflow._mcp_tool_meta.to_dict())
+    tools.append(update_workflow._mcp_tool_meta.to_dict())
+    tools.append(execute_workflow._mcp_tool_meta.to_dict())
+    tools.append(get_workflow_status._mcp_tool_meta.to_dict())
+    
+    # Task management tools
+    tools.append(create_task._mcp_tool_meta.to_dict())
+    tools.append(assign_task._mcp_tool_meta.to_dict())
+    tools.append(update_task_status._mcp_tool_meta.to_dict())
+    tools.append(get_task._mcp_tool_meta.to_dict())
+    tools.append(list_tasks._mcp_tool_meta.to_dict())
+    
+    logger.info(f"get_all_tools returning {len(tools)} Ergon MCP tools")
+    return tools

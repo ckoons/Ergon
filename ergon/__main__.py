@@ -11,7 +11,7 @@ from shared.utils.socket_server import run_component_server
 
 if __name__ == "__main__":
     # Get port from environment variable
-    default_port = int(os.environ.get("ERGON_PORT"))
+    default_port = int(os.environ.get("ERGON_PORT", 8002))
     
     run_component_server(
         component_name="ergon",

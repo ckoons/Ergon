@@ -88,7 +88,7 @@ class ErgonMCPBridge(MCPService):
         # Create handler that delegates to FastMCP
         async def handler(parameters: Dict[str, Any]) -> Dict[str, Any]:
             # Import here to avoid circular imports
-            from ergon.api.fastmcp_endpoints import process_request_func
+            from tekton.mcp.fastmcp.utils.requests import process_mcp_request
             from tekton.mcp.fastmcp.schema import MCPRequest
             
             # Create an MCP request for the FastMCP handler
@@ -99,7 +99,11 @@ class ErgonMCPBridge(MCPService):
             )
             
             # Process through FastMCP
-            response = await process_request_func(self.a2a_client, request)
+            response = await process_mcp_request(
+                component_manager=self.a2a_client,
+                request=request,
+                component_module_path="ergon.core.mcp.tools"
+            )
             
             # Extract result from response
             if response.status == "success":

@@ -18,7 +18,7 @@ from .tools import (
     # Task management tools
     create_task, assign_task, update_task_status, get_task, list_tasks,
     # Registration
-    register_tools
+    register_tools, get_all_tools
 )
 
 __all__ = [
@@ -33,4 +33,5 @@ __all__ = [
     
     # Registration
     "register_tools",
+    "get_all_tools"
 ]
