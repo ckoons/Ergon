@@ -41,12 +41,21 @@ class Settings(BaseSettings):
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     
     # Tekton shared settings
-    tekton_home: Path = Field(default_factory=lambda: Path.home() / ".tekton")
+    tekton_home: Path = Field(default_factory=lambda: Path(
+        os.environ.get('TEKTON_DATA_DIR', 
+                      os.path.join(os.environ.get('TEKTON_ROOT', Path.home()), '.tekton', 'data'))
+    ))
     
     # Database settings
     database_url: str = Field(default_factory=lambda: f"sqlite:///{Path(__file__).parent.parent.parent.parent.absolute()}/ergon.db")
-    vector_db_path: str = Field(default_factory=lambda: str(Path.home() / ".tekton" / "vector_store"))
-    data_dir: str = Field(default_factory=lambda: str(Path.home() / ".tekton" / "data"))
+    vector_db_path: str = Field(default_factory=lambda: str(Path(
+        os.environ.get('TEKTON_DATA_DIR', 
+                      os.path.join(os.environ.get('TEKTON_ROOT', Path.home()), '.tekton', 'data'))
+    ) / "vector_store"))
+    data_dir: str = Field(default_factory=lambda: str(Path(
+        os.environ.get('TEKTON_DATA_DIR', 
+                      os.path.join(os.environ.get('TEKTON_ROOT', Path.home()), '.tekton', 'data'))
+    )))
     
     # Authentication settings
     require_authentication: bool = True  # Default to requiring authentication
