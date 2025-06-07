@@ -24,7 +24,8 @@ router = APIRouter(tags=["a2a"])
 a2a_client = A2AClient(
     agent_id="ergon-api",
     agent_name="Ergon API Agent",
-    capabilities={"processing": ["agent_management", "workflow_execution"]}
+    capabilities=["agent_management", "workflow_execution", "task_processing"],
+    supported_methods=["ergon.agent.create", "ergon.workflow.execute", "ergon.task.process"]
 )
 
 # Initialize client when module loads
@@ -112,58 +113,53 @@ async def discover_agents(
             detail=f"Error discovering agents: {str(e)}"
         )
 
-@router.post("/messages/send")
-async def send_message(
+@router.post("/messages/forward")
+async def forward_message(
     message_data: Dict[str, Any] = Body(...),
 ) -> Dict[str, Any]:
     """
-    Send a message to other agents.
+    Forward a message to another agent via A2A.
     
     Args:
-        message_data: Message data
+        message_data: Message data containing agent_id, method, and params
         
     Returns:
-        Message sending result
+        Forwarding result
     """
     try:
-        # Extract message details
-        recipients = message_data.get("recipients", [])
-        content = message_data.get("content", {})
-        message_type = message_data.get("message_type", "request")
-        intent = message_data.get("intent")
-        conversation_id = message_data.get("conversation_id")
-        reply_to = message_data.get("reply_to")
-        priority = message_data.get("priority", "normal")
-        metadata = message_data.get("metadata", {})
+        # Extract forwarding details
+        agent_id = message_data.get("agent_id")
+        method = message_data.get("method")
+        params = message_data.get("params", {})
         
-        # Send the message
-        message_id = await a2a_client.send_message(
-            recipients=recipients,
-            content=content,
-            message_type=message_type,
-            intent=intent,
-            conversation_id=conversation_id,
-            reply_to=reply_to,
-            priority=priority,
-            metadata=metadata
+        if not agent_id or not method:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "agent_id and method are required"}
+            )
+        
+        # Forward the message
+        result = await a2a_client.forward_to_agent(
+            agent_id=agent_id,
+            method=method,
+            params=params
         )
         
-        if message_id:
+        if result:
             return {
                 "success": True,
-                "message_id": message_id,
-                "conversation_id": conversation_id
+                "result": result
             }
         else:
             return JSONResponse(
                 status_code=500,
-                content={"success": False, "error": "Failed to send message"}
+                content={"success": False, "error": "Failed to forward message"}
             )
     except Exception as e:
-        logger.error(f"Error sending message: {e}")
+        logger.error(f"Error forwarding message: {e}")
         return JSONResponse(
             status_code=500,
-            content={"success": False, "error": f"Message sending error: {str(e)}"}
+            content={"success": False, "error": f"Message forwarding error: {str(e)}"}
         )
 
 @router.post("/tasks/create")
@@ -182,28 +178,20 @@ async def create_task(
     try:
         # Extract task details
         name = task_data.get("name", "Unnamed Task")
-        description = task_data.get("description", "")
-        required_capabilities = task_data.get("required_capabilities", [])
-        parameters = task_data.get("parameters", {})
-        preferred_agent = task_data.get("preferred_agent")
-        deadline = task_data.get("deadline")
+        description = task_data.get("description")
+        input_data = task_data.get("input_data", {})
         priority = task_data.get("priority", "normal")
-        metadata = task_data.get("metadata", {})
         
         # Create the task
-        task_id = await a2a_client.create_task(
+        task_result = await a2a_client.create_task(
             name=name,
             description=description,
-            required_capabilities=required_capabilities,
-            parameters=parameters,
-            preferred_agent=preferred_agent,
-            deadline=deadline,
-            priority=priority,
-            metadata=metadata
+            input_data=input_data,
+            priority=priority
         )
         
-        if task_id:
-            return {"success": True, "task_id": task_id}
+        if task_result:
+            return {"success": True, "task_id": task_result.get("id")}
         else:
             return JSONResponse(
                 status_code=500,
@@ -255,13 +243,20 @@ async def complete_task(
     
     Args:
         task_id: ID of the task to complete
-        result: Task result
+        result: Task result containing output_data and message
         
     Returns:
         Task completion result
     """
     try:
-        success = await a2a_client.complete_task(task_id, result)
+        output_data = result.get("output_data")
+        message = result.get("message")
+        
+        success = await a2a_client.complete_task(
+            task_id=task_id,
+            output_data=output_data,
+            message=message
+        )
         if success:
             return {"success": True, "task_id": task_id}
         else:
@@ -276,80 +271,80 @@ async def complete_task(
             content={"success": False, "error": f"Task completion error: {str(e)}"}
         )
 
-@router.post("/conversations/start")
-async def start_conversation(
-    conversation_data: Dict[str, Any] = Body(...),
+@router.post("/channels/subscribe")
+async def subscribe_to_channel(
+    channel_data: Dict[str, Any] = Body(...),
 ) -> Dict[str, Any]:
     """
-    Start a new conversation.
+    Subscribe to a message channel.
     
     Args:
-        conversation_data: Conversation data
+        channel_data: Channel subscription data
         
     Returns:
-        Conversation creation result
+        Subscription result
     """
     try:
-        # Extract conversation details
-        recipients = conversation_data.get("recipients", [])
-        content = conversation_data.get("content", {})
-        intent = conversation_data.get("intent")
-        metadata = conversation_data.get("metadata", {})
+        channel = channel_data.get("channel")
+        if not channel:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "channel is required"}
+            )
         
-        # Start the conversation
-        message_id = await a2a_client.send_message(
-            recipients=recipients,
-            content=content,
-            intent=intent,
-            metadata=metadata
-        )
+        success = await a2a_client.subscribe_to_channel(channel)
         
-        if message_id:
-            # The conversation ID is the same as the first message ID
-            return {
-                "success": True,
-                "conversation_id": message_id,
-                "message_id": message_id
-            }
+        if success:
+            return {"success": True, "channel": channel}
         else:
             return JSONResponse(
                 status_code=500,
-                content={"success": False, "error": "Failed to start conversation"}
+                content={"success": False, "error": "Failed to subscribe to channel"}
             )
     except Exception as e:
-        logger.error(f"Error starting conversation: {e}")
+        logger.error(f"Error subscribing to channel: {e}")
         return JSONResponse(
             status_code=500,
-            content={"success": False, "error": f"Conversation creation error: {str(e)}"}
+            content={"success": False, "error": f"Channel subscription error: {str(e)}"}
         )
 
-@router.get("/conversations/{conversation_id}")
-async def get_conversation(
-    conversation_id: str = Path(..., description="Conversation ID to retrieve"),
+@router.post("/channels/publish")
+async def publish_to_channel(
+    channel_data: Dict[str, Any] = Body(...),
 ) -> Dict[str, Any]:
     """
-    Get a conversation by ID.
+    Publish a message to a channel.
     
     Args:
-        conversation_id: ID of the conversation to retrieve
+        channel_data: Channel publish data
         
     Returns:
-        Conversation details
+        Publish result
     """
     try:
-        conversation = await a2a_client.get_conversation(conversation_id)
-        if conversation:
-            return conversation
+        channel = channel_data.get("channel")
+        message = channel_data.get("message", {})
+        
+        if not channel:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "channel is required"}
+            )
+        
+        success = await a2a_client.publish_to_channel(channel, message)
+        
+        if success:
+            return {"success": True, "channel": channel}
         else:
             return JSONResponse(
-                status_code=404,
-                content={"error": f"Conversation with ID {conversation_id} not found"}
+                status_code=500,
+                content={"success": False, "error": "Failed to publish to channel"}
             )
     except Exception as e:
-        logger.error(f"Error retrieving conversation: {e}")
-        raise HTTPException(
+        logger.error(f"Error publishing to channel: {e}")
+        return JSONResponse(
             status_code=500,
-            detail=f"Error retrieving conversation: {str(e)}"
+            content={"success": False, "error": f"Channel publish error: {str(e)}"}
         )
 
 @router.get("/health")
@@ -362,23 +357,25 @@ async def health_check() -> Dict[str, Any]:
     """
     # Perform a simple check by trying to discover agents
     try:
-        if not a2a_client.initialized:
+        if not a2a_client.registered:
             return JSONResponse(
                 status_code=503,
                 content={
                     "status": "error",
-                    "message": "A2A client not initialized"
+                    "message": "A2A client not registered"
                 }
             )
             
-        # Try to discover agents as a health check
-        await a2a_client.discover_agents()
+        # Try to send heartbeat as a health check
+        heartbeat_success = await a2a_client.heartbeat()
         
         return {
-            "status": "ok",
+            "status": "ok" if heartbeat_success else "degraded",
             "agent_id": a2a_client.agent_id,
             "agent_name": a2a_client.agent_name,
-            "hermes_url": a2a_client.hermes_url
+            "hermes_url": a2a_client.hermes_url,
+            "registered": a2a_client.registered,
+            "heartbeat": heartbeat_success
         }
     except Exception as e:
         logger.error(f"A2A health check failed: {e}")
