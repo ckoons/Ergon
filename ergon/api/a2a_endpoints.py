@@ -58,7 +58,7 @@ async def register_agent(
         agent_id = agent_data.get("agent_id", f"ergon-agent-{uuid.uuid4()}")
         agent_name = agent_data.get("agent_name", "Ergon Agent")
         agent_version = agent_data.get("agent_version", "0.1.0")
-        capabilities = agent_data.get("capabilities", {})
+        capabilities = agent_data.get("capabilities", ["task_execution", "workflow_management"])
         metadata = agent_data.get("metadata", {})
         
         # Create a new A2A client for this agent

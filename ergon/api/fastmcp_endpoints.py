@@ -45,7 +45,7 @@ async def get_a2a_client() -> A2AClient:
         a2a_client = A2AClient(
             agent_id="ergon-fastmcp",
             agent_name="Ergon FastMCP Service",
-            capabilities={"processing": ["agent_management", "workflow_management", "task_management"]}
+            capabilities=["agent_management", "workflow_management", "task_management"]
         )
         await a2a_client.initialize()
         await a2a_client.register()
