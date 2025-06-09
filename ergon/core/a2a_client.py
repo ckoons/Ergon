@@ -125,6 +125,9 @@ class A2AClient:
             request["params"] = params
         
         try:
+            # Log the request
+            logger.debug(f"Sending JSON-RPC request to {self.a2a_endpoint}/: {request}")
+            
             # Send request
             async with self.session.post(
                 f"{self.a2a_endpoint}/",
@@ -132,38 +135,61 @@ class A2AClient:
                 headers={"Content-Type": "application/json"}
             ) as response:
                 response.raise_for_status()
-                result = await response.json()
+                text = await response.text()
+                logger.debug(f"Received response text: {text}")
+                
+                # Try to parse JSON
+                try:
+                    result = json.loads(text) if text else None
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse JSON response: {e}")
+                    logger.error(f"Response text was: {text}")
+                    return {}
+                
+                # Handle None response
+                if result is None:
+                    logger.error(f"Received None response from A2A endpoint for method {method}")
+                    return {}
                 
                 # Check for JSON-RPC error
-                if "error" in result:
+                if "error" in result and result["error"] is not None:
                     error = result["error"]
-                    raise Exception(f"JSON-RPC Error {error['code']}: {error['message']}")
+                    # Check if error dict has the expected fields
+                    if isinstance(error, dict) and "code" in error and "message" in error:
+                        raise Exception(f"JSON-RPC Error {error['code']}: {error['message']}")
+                    else:
+                        raise Exception(f"JSON-RPC Error (malformed): {error}")
                 
-                return result.get("result")
+                # Return the result field if present, otherwise return empty dict
+                return result.get("result", {})
         
         except ClientResponseError as e:
             logger.error(f"HTTP error in JSON-RPC request: {e}")
             raise
         except Exception as e:
             logger.error(f"Error in JSON-RPC request: {e}")
+            logger.error(f"Request was: {request}")
+            logger.error(f"A2A endpoint: {self.a2a_endpoint}/")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise
     
     async def register(self) -> bool:
         """Register this agent with the A2A service."""
         try:
-            # Create agent card
+            # Create agent card (using camelCase for JSON fields)
             agent_card = {
                 "id": self.agent_id,
                 "name": self.agent_name,
                 "description": f"{self.agent_name} - Workflow and task execution agent",
                 "version": self.agent_version,
                 "capabilities": self.capabilities,
-                "supported_methods": self.supported_methods,
-                "endpoint": f"http://localhost:{os.environ.get('ERGON_PORT', '8009')}/api/a2a/v1/",
+                "supportedMethods": self.supported_methods,  # camelCase for JSON
+                "endpoint": f"http://localhost:{os.environ.get('ERGON_PORT', '8002')}/api/a2a/v1/",
                 "tags": ["ergon", "workflow", "task"],
                 "metadata": {
                     "component": "ergon",
-                    "protocol_version": "0.2.1"
+                    "protocolVersion": "0.2.1"  # camelCase for JSON
                 }
             }
             
@@ -173,7 +199,7 @@ class A2AClient:
                 {"agent_card": agent_card}
             )
             
-            if result.get("success"):
+            if result and result.get("success"):
                 self.registered = True
                 logger.info(f"Agent {self.agent_id} registered with A2A service")
                 
