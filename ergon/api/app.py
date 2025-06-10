@@ -191,6 +191,10 @@ async def cleanup_tasks():
     
     logger.info("Ergon API server shutdown complete")
 
+# Get configuration for port
+config = get_component_config()
+ergon_port = config.ergon.port if hasattr(config, 'ergon') else int(os.environ.get("ERGON_PORT"))
+
 # Create FastAPI app with proper URL paths following Single Port Architecture
 app = FastAPI(
     **get_openapi_configuration(
@@ -202,7 +206,7 @@ app = FastAPI(
         COMPONENT_NAME,
         startup_tasks,
         [cleanup_tasks],
-        port=int(os.environ.get("ERGON_PORT", 8002))
+        port=ergon_port
     )
 )
 
@@ -861,7 +865,8 @@ async def websocket_endpoint(websocket):
 if __name__ == "__main__":
     from shared.utils.socket_server import run_component_server
     
-    port = int(os.environ.get("ERGON_PORT"))
+    config = get_component_config()
+    port = config.ergon.port if hasattr(config, 'ergon') else int(os.environ.get("ERGON_PORT"))
     run_component_server(
         component_name="ergon",
         app_module="ergon.api.app",

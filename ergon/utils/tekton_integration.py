@@ -6,8 +6,16 @@ including the Single Port Architecture and shared component utilities.
 """
 
 import os
+import sys
 import logging
 from typing import Dict, Any, Optional, List, Tuple, Union
+
+# Add Tekton root to path for shared imports
+tekton_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+if tekton_root not in sys.path:
+    sys.path.append(tekton_root)
+
+from shared.utils.env_config import get_component_config
 
 logger = logging.getLogger(__name__)
 
@@ -21,28 +29,46 @@ def get_component_port(component_name: str) -> int:
     Returns:
         Component port
     """
+    config = get_component_config()
+    component_name_lower = component_name.lower()
+    
+    # Try to get port from config first
+    if hasattr(config, component_name_lower):
+        component_config = getattr(config, component_name_lower)
+        if hasattr(component_config, 'port'):
+            return component_config.port
+    
+    # Fallback to environment variables
     component_map = {
-        "hephaestus": ("HEPHAESTUS_PORT", 8080),
-        "engram": ("ENGRAM_PORT", 8000),
-        "hermes": ("HERMES_PORT", 8001),
-        "ergon": ("ERGON_PORT", 8002),
-        "rhetor": ("RHETOR_PORT", 8003),
-        "terma": ("TERMA_PORT", 8004),
-        "athena": ("ATHENA_PORT", 8005),
-        "prometheus": ("PROMETHEUS_PORT", 8006),
-        "harmonia": ("HARMONIA_PORT", 8007),
-        "telos": ("TELOS_PORT", 8008),
-        "synthesis": ("SYNTHESIS_PORT", 8009),
-        "tekton_core": ("TEKTON_CORE_PORT", 8010),
+        "hephaestus": "HEPHAESTUS_PORT",
+        "engram": "ENGRAM_PORT",
+        "hermes": "HERMES_PORT",
+        "ergon": "ERGON_PORT",
+        "rhetor": "RHETOR_PORT",
+        "terma": "TERMA_PORT",
+        "athena": "ATHENA_PORT",
+        "prometheus": "PROMETHEUS_PORT",
+        "harmonia": "HARMONIA_PORT",
+        "telos": "TELOS_PORT",
+        "synthesis": "SYNTHESIS_PORT",
+        "tekton_core": "TEKTON_CORE_PORT",
+        "metis": "METIS_PORT",
+        "apollo": "APOLLO_PORT",
+        "budget": "BUDGET_PORT",
+        "sophia": "SOPHIA_PORT",
     }
     
-    env_var, default_port = component_map.get(component_name.lower(), (None, None))
+    env_var = component_map.get(component_name_lower)
     
     if not env_var:
-        logger.warning(f"Unknown component: {component_name}. Using default port 8000.")
-        return 8000
+        logger.warning(f"Unknown component: {component_name}.")
+        raise ValueError(f"Unknown component: {component_name}")
     
-    return int(os.environ.get(env_var, default_port))
+    port_str = os.environ.get(env_var)
+    if not port_str:
+        raise ValueError(f"{env_var} not found in environment")
+    
+    return int(port_str)
 
 def get_component_url(
     component_name: str,

@@ -6,6 +6,7 @@ components to process multimodal content through the MCP service.
 """
 
 import os
+import sys
 import uuid
 import base64
 import logging
@@ -14,6 +15,13 @@ from typing import Dict, List, Any, Optional, Union, BinaryIO, Callable
 
 import aiohttp
 from aiohttp import ClientSession, ClientResponseError, ClientConnectorError
+
+# Add Tekton root to path for shared imports
+tekton_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+if tekton_root not in sys.path:
+    sys.path.append(tekton_root)
+
+from shared.utils.env_config import get_component_config
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +66,8 @@ class MCPClient:
             Hermes API URL
         """
         hermes_host = os.environ.get("HERMES_HOST", "localhost")
-        hermes_port = os.environ.get("HERMES_PORT", "8001")
+        config = get_component_config()
+        hermes_port = config.hermes.port if hasattr(config, 'hermes') else int(os.environ.get("HERMES_PORT"))
         return f"http://{hermes_host}:{hermes_port}/api"
     
     async def initialize(self) -> bool:

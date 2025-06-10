@@ -6,6 +6,7 @@ agents to communicate with other agents using JSON-RPC 2.0.
 """
 
 import os
+import sys
 import time
 import uuid
 import json
@@ -16,6 +17,12 @@ from typing import Dict, List, Any, Optional, Union, Callable
 import aiohttp
 from aiohttp import ClientSession, ClientResponseError, ClientConnectorError
 
+# Add Tekton root to path for shared imports
+tekton_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+if tekton_root not in sys.path:
+    sys.path.append(tekton_root)
+
+from shared.utils.env_config import get_component_config
 from ergon.utils.hermes_helper import register_with_hermes
 
 logger = logging.getLogger(__name__)
@@ -68,7 +75,8 @@ class A2AClient:
     def _get_hermes_url(self) -> str:
         """Get the Hermes URL from environment variables or use the default."""
         hermes_host = os.environ.get("HERMES_HOST", "localhost")
-        hermes_port = os.environ.get("HERMES_PORT", "8001")
+        config = get_component_config()
+        hermes_port = config.hermes.port if hasattr(config, 'hermes') else int(os.environ.get("HERMES_PORT"))
         return f"http://{hermes_host}:{hermes_port}/api"
     
     async def initialize(self) -> bool:
@@ -90,6 +98,14 @@ class A2AClient:
         if self.session:
             await self.session.close()
             self.session = None
+    
+    def _get_ergon_port(self) -> int:
+        """Get Ergon port from configuration."""
+        config = get_component_config()
+        try:
+            return config.ergon.port
+        except (AttributeError, TypeError):
+            return int(os.environ.get('ERGON_PORT'))
     
     async def _send_jsonrpc(
         self,
@@ -185,7 +201,7 @@ class A2AClient:
                 "version": self.agent_version,
                 "capabilities": self.capabilities,
                 "supportedMethods": self.supported_methods,  # camelCase for JSON
-                "endpoint": f"http://localhost:{os.environ.get('ERGON_PORT', '8002')}/api/a2a/v1/",
+                "endpoint": f"http://localhost:{self._get_ergon_port()}/api/a2a/v1/",
                 "tags": ["ergon", "workflow", "task"],
                 "metadata": {
                     "component": "ergon",
