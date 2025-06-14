@@ -60,170 +60,53 @@ from .a2a_endpoints import router as a2a_router
 from .mcp_endpoints import router as mcp_router
 from .fastmcp_endpoints import fastmcp_router, fastmcp_startup, fastmcp_shutdown
 
-# Create terminal memory service as a global instance
-terminal_memory = MemoryService()
+# Import ergon component
+from ergon.core.ergon_component import ErgonComponent
+
+# Create component singleton
+ergon_component = ErgonComponent()
 
 # Use shared logger
 logger = setup_component_logging("ergon")
-
-# Component configuration
-COMPONENT_NAME = "ergon"
-COMPONENT_VERSION = "0.1.0"
-COMPONENT_DESCRIPTION = "Agent system for specialized task execution"
-start_time = None
-is_registered_with_hermes = False
-
-# Initialize memory service
-memory_service = MemoryService()
-
-# Initialize database if needed
-if not os.path.exists(settings.database_url.replace("sqlite:///", "")):
-    init_db()
 
 # Get port configuration
 port_config = configure_for_single_port()
 logger.info(f"Ergon API configured with port {port_config['port']}")
 
-# Global state for Hermes registration
-hermes_registration = None
-heartbeat_task = None
-mcp_bridge = None
-
-# Create lifespan context manager
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Lifespan manager for Ergon component."""
-    global hermes_registration, heartbeat_task, start_time, is_registered_with_hermes, mcp_bridge
+async def startup_callback():
+    """Initialize Ergon component (includes Hermes registration)."""
+    # Initialize component (includes Hermes registration)
+    await ergon_component.initialize(
+        capabilities=ergon_component.get_capabilities(),
+        metadata=ergon_component.get_metadata()
+    )
     
-    # Define startup function
-    async def ergon_startup():
-        """Initialize Ergon services."""
-        global hermes_registration, heartbeat_task, start_time, is_registered_with_hermes, mcp_bridge
-        import time
-        start_time = time.time()
-        
-        logger.info("Starting Ergon API")
-        
-        try:
-            # Get configuration
-            config = get_component_config()
-            port = config.ergon.port if hasattr(config, 'ergon') else int(os.environ.get("ERGON_PORT"))
-            
-            # Register with Hermes
-            hermes_registration = HermesRegistration()
-            
-            logger.info(f"Attempting to register Ergon with Hermes on port {port}")
-            is_registered_with_hermes = await hermes_registration.register_component(
-                component_name=COMPONENT_NAME,
-                port=port,
-                version=COMPONENT_VERSION,
-                capabilities=[
-                    "agent_creation",
-                    "agent_execution",
-                    "memory_integration",
-                    "specialized_tasks"
-                ],
-                metadata={
-                    "description": COMPONENT_DESCRIPTION,
-                    "category": "execution"
-                }
-            )
-            
-            if is_registered_with_hermes:
-                logger.info("Successfully registered with Hermes")
-                # Start heartbeat task
-                heartbeat_task = asyncio.create_task(
-                    heartbeat_loop(hermes_registration, COMPONENT_NAME, interval=30)
-                )
-                logger.info("Started Hermes heartbeat task")
-            else:
-                logger.warning("Failed to register with Hermes - continuing without registration")
-            
-            # Initialize FastMCP
-            await fastmcp_startup()
-            logger.info("FastMCP initialized")
-            
-            # Initialize Hermes MCP Bridge
-            try:
-                from ergon.core.mcp.hermes_bridge import ErgonMCPBridge
-                from ergon.api.fastmcp_endpoints import get_a2a_client
-                
-                # Get the A2A client
-                a2a_client = await get_a2a_client()
-                
-                mcp_bridge = ErgonMCPBridge(a2a_client)
-                await mcp_bridge.initialize()
-                logger.info("Initialized Hermes MCP Bridge for FastMCP tools")
-            except Exception as e:
-                logger.warning(f"Failed to initialize MCP Bridge: {e}")
-            
-        except Exception as e:
-            logger.error(f"Error during Ergon startup: {e}", exc_info=True)
-            raise StartupError(str(e), COMPONENT_NAME, "STARTUP_FAILED")
-    
-    # Execute startup with metrics
+    # Component-specific FastMCP initialization (after component init)
     try:
-        metrics = await component_startup(COMPONENT_NAME, ergon_startup, timeout=30)
-        logger.info(f"Ergon started successfully in {metrics.total_time:.2f}s")
-    except Exception as e:
-        logger.error(f"Failed to start Ergon: {e}")
-        raise
-    
-    # Create shutdown handler
-    shutdown = GracefulShutdown(COMPONENT_NAME)
-    
-    # Register cleanup tasks
-    async def cleanup_hermes():
-        """Cleanup Hermes registration."""
-        if heartbeat_task:
-            heartbeat_task.cancel()
-            try:
-                await heartbeat_task
-            except asyncio.CancelledError:
-                pass
+        # Initialize FastMCP
+        await fastmcp_startup()
+        logger.info("FastMCP initialized")
         
-        if hermes_registration and is_registered_with_hermes:
-            await hermes_registration.deregister(COMPONENT_NAME)
-            logger.info("Deregistered from Hermes")
-    
-    async def cleanup_fastmcp():
-        """Cleanup FastMCP."""
-        try:
-            await fastmcp_shutdown()
-            logger.info("FastMCP shut down")
-        except Exception as e:
-            logger.warning(f"Error shutting down FastMCP: {e}")
-    
-    async def cleanup_mcp_bridge():
-        """Cleanup MCP bridge."""
-        if mcp_bridge:
-            try:
-                await mcp_bridge.shutdown()
-                logger.info("MCP bridge cleaned up")
-            except Exception as e:
-                logger.warning(f"Error cleaning up MCP bridge: {e}")
-    
-    shutdown.register_cleanup(cleanup_hermes)
-    shutdown.register_cleanup(cleanup_fastmcp)
-    shutdown.register_cleanup(cleanup_mcp_bridge)
-    
-    yield
-    
-    # Shutdown
-    logger.info("Shutting down Ergon API")
-    await shutdown.shutdown_sequence(timeout=10)
-    
-    # Socket release delay for macOS
-    await asyncio.sleep(0.5)
+        # Initialize Hermes MCP Bridge
+        from ergon.core.mcp.hermes_bridge import ErgonMCPBridge
+        
+        # Use component's A2A client
+        ergon_component.mcp_bridge = ErgonMCPBridge(ergon_component.a2a_client)
+        await ergon_component.mcp_bridge.initialize()
+        logger.info("Initialized Hermes MCP Bridge for FastMCP tools")
+    except ImportError:
+        logger.warning("FastMCP or MCP Bridge not available, continuing without")
+    except Exception as e:
+        logger.warning(f"Failed to initialize FastMCP/MCP Bridge: {e}")
 
-# Create FastAPI app with proper URL paths following Single Port Architecture
-app = FastAPI(
+# Create FastAPI app using component
+app = ergon_component.create_app(
+    startup_callback=startup_callback,
     **get_openapi_configuration(
-        component_name=COMPONENT_NAME,
-        component_version=COMPONENT_VERSION,
-        component_description=COMPONENT_DESCRIPTION
-    ),
-    lifespan=lifespan
+        component_name="ergon",
+        component_version="0.1.0",
+        component_description="Agent system for specialized task execution"
+    )
 )
 
 # Add CORS middleware
@@ -236,7 +119,7 @@ app.add_middleware(
 )
 
 # Create standard routers
-routers = create_standard_routers(COMPONENT_NAME)
+routers = create_standard_routers("ergon")
 
 # Add exception handlers
 @app.exception_handler(Exception)
@@ -338,11 +221,11 @@ async def health_check():
     
     # Use standardized health response
     return create_health_response(
-        component_name=COMPONENT_NAME,
+        component_name="ergon",
         port=port,
-        version=COMPONENT_VERSION,
+        version="0.1.0",
         status="healthy",
-        registered=is_registered_with_hermes,
+        registered=ergon_component.global_config.is_registered_with_hermes,
         details={
             "services": ["agent_creation", "agent_execution", "memory_integration"]
         }
@@ -353,9 +236,9 @@ async def health_check():
 async def root():
     """Root endpoint with basic information."""
     return {
-        "component": COMPONENT_NAME,
-        "description": COMPONENT_DESCRIPTION,
-        "version": COMPONENT_VERSION,
+        "component": "ergon",
+        "description": "Agent system for specialized task execution",
+        "version": "0.1.0",
         "status": "active"
     }
 
@@ -363,10 +246,10 @@ async def root():
 routers.root.add_api_route(
     "/ready",
     create_ready_endpoint(
-        component_name=COMPONENT_NAME,
-        component_version=COMPONENT_VERSION,
-        start_time=start_time or 0,
-        readiness_check=lambda: is_registered_with_hermes
+        component_name="ergon",
+        component_version="0.1.0",
+        start_time=ergon_component.global_config._start_time,
+        readiness_check=lambda: ergon_component.global_config.is_registered_with_hermes
     ),
     methods=["GET"]
 )
@@ -375,9 +258,9 @@ routers.root.add_api_route(
 routers.v1.add_api_route(
     "/discovery",
     create_discovery_endpoint(
-        component_name=COMPONENT_NAME,
-        component_version=COMPONENT_VERSION,
-        component_description=COMPONENT_DESCRIPTION,
+        component_name="ergon",
+        component_version="0.1.0",
+        component_description="Agent system for specialized task execution",
         endpoints=[
             EndpointInfo(path="/api/v1/agents", method="*", description="Agent management"),
             EndpointInfo(path="/api/v1/agents/{agent_id}", method="*", description="Agent operations"),
@@ -387,20 +270,11 @@ routers.v1.add_api_route(
             EndpointInfo(path="/api/v1/terminal/message", method="POST", description="Terminal message"),
             EndpointInfo(path="/api/v1/terminal/stream", method="POST", description="Terminal streaming")
         ],
-        capabilities=[
-            "agent_creation",
-            "agent_execution",
-            "memory_integration",
-            "specialized_tasks"
-        ],
+        capabilities=ergon_component.get_capabilities(),
         dependencies={
             "hermes": "http://localhost:8001"
         },
-        metadata={
-            "documentation": "/api/v1/docs",
-            "database": "enabled",
-            "fastmcp": "enabled"
-        }
+        metadata=ergon_component.get_metadata()
     ),
     methods=["GET"]
 )
@@ -414,8 +288,8 @@ async def get_status():
         
     return {
         "status": "ok",
-        "version": COMPONENT_VERSION,
-        "database": os.path.exists(settings.database_url.replace("sqlite:///", "")),
+        "version": "0.1.0",
+        "database": os.path.exists(str(ergon_component.db_path)) if ergon_component.db_path else False,
         "models": settings.available_models,
         "doc_count": doc_count,
         "port": port_config["port"],
@@ -691,7 +565,7 @@ async def terminal_message(
         
         # Get previous messages from memory if applicable
         if request.save_to_memory:
-            prev_messages = terminal_memory.get_recent_messages(request.context_id, limit=10)
+            prev_messages = ergon_component.terminal_memory.get_recent_messages(request.context_id, limit=10)
             messages.extend(prev_messages)
         
         # Add the current user message
@@ -763,7 +637,7 @@ async def terminal_stream(
         
         # Get previous messages from memory if applicable
         if request.save_to_memory:
-            prev_messages = terminal_memory.get_recent_messages(request.context_id, limit=10)
+            prev_messages = ergon_component.terminal_memory.get_recent_messages(request.context_id, limit=10)
             messages.extend(prev_messages)
         
         # Add the current user message
@@ -878,14 +752,19 @@ async def websocket_endpoint(websocket):
 
 # Run with: uvicorn ergon.api.app:app --host 0.0.0.0 --port $ERGON_PORT (default: 8002)
 
+# Store component in app state for access by endpoints
+app.state.component = ergon_component
+
 if __name__ == "__main__":
     from shared.utils.socket_server import run_component_server
+    from shared.utils.global_config import GlobalConfig
     
-    config = get_component_config()
-    port = config.ergon.port if hasattr(config, 'ergon') else int(os.environ.get("ERGON_PORT"))
+    global_config = GlobalConfig.get_instance()
+    default_port = global_config.config.ergon.port
+    
     run_component_server(
         component_name="ergon",
         app_module="ergon.api.app",
-        default_port=port,
+        default_port=default_port,
         reload=False
     )
