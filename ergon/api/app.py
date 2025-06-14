@@ -20,6 +20,7 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import Field
 from tekton.models.base import TektonBaseModel
+from contextlib import asynccontextmanager
 
 # Add Tekton root to path if not already present
 tekton_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -32,7 +33,7 @@ from shared.utils.logging_setup import setup_component_logging
 from shared.utils.env_config import get_component_config
 from shared.utils.errors import StartupError
 from shared.utils.startup import component_startup, StartupMetrics
-from shared.utils.shutdown import GracefulShutdown, component_lifespan
+from shared.utils.shutdown import GracefulShutdown
 from shared.utils.health_check import create_health_response
 from shared.api import (
     create_standard_routers,
@@ -88,112 +89,132 @@ hermes_registration = None
 heartbeat_task = None
 mcp_bridge = None
 
-# Define startup and cleanup functions for lifespan
-async def startup_tasks():
-    """Initialize Ergon services."""
-    global hermes_registration, heartbeat_task, start_time, is_registered_with_hermes
-    import time
-    start_time = time.time()
+# Create lifespan context manager
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan manager for Ergon component."""
+    global hermes_registration, heartbeat_task, start_time, is_registered_with_hermes, mcp_bridge
     
-    logger.info("Starting Ergon API")
-    
-    try:
-        # Get configuration
-        config = get_component_config()
-        port = config.ergon.port if hasattr(config, 'ergon') else int(os.environ.get("ERGON_PORT"))
+    # Define startup function
+    async def ergon_startup():
+        """Initialize Ergon services."""
+        global hermes_registration, heartbeat_task, start_time, is_registered_with_hermes, mcp_bridge
+        import time
+        start_time = time.time()
         
-        # Register with Hermes
-        hermes_registration = HermesRegistration()
+        logger.info("Starting Ergon API")
         
-        logger.info(f"Attempting to register Ergon with Hermes on port {port}")
-        is_registered_with_hermes = await hermes_registration.register_component(
-            component_name=COMPONENT_NAME,
-            port=port,
-            version=COMPONENT_VERSION,
-            capabilities=[
-                "agent_creation",
-                "agent_execution",
-                "memory_integration",
-                "specialized_tasks"
-            ],
-            metadata={
-                "description": COMPONENT_DESCRIPTION,
-                "category": "execution"
-            }
-        )
-        
-        if is_registered_with_hermes:
-            logger.info("Successfully registered with Hermes")
-            # Start heartbeat task
-            heartbeat_task = asyncio.create_task(
-                heartbeat_loop(hermes_registration, COMPONENT_NAME, interval=30)
+        try:
+            # Get configuration
+            config = get_component_config()
+            port = config.ergon.port if hasattr(config, 'ergon') else int(os.environ.get("ERGON_PORT"))
+            
+            # Register with Hermes
+            hermes_registration = HermesRegistration()
+            
+            logger.info(f"Attempting to register Ergon with Hermes on port {port}")
+            is_registered_with_hermes = await hermes_registration.register_component(
+                component_name=COMPONENT_NAME,
+                port=port,
+                version=COMPONENT_VERSION,
+                capabilities=[
+                    "agent_creation",
+                    "agent_execution",
+                    "memory_integration",
+                    "specialized_tasks"
+                ],
+                metadata={
+                    "description": COMPONENT_DESCRIPTION,
+                    "category": "execution"
+                }
             )
-            logger.info("Started Hermes heartbeat task")
-        else:
-            logger.warning("Failed to register with Hermes - continuing without registration")
-        
-        # Initialize FastMCP
-        await fastmcp_startup()
-        logger.info("FastMCP initialized")
-        
-        # Initialize Hermes MCP Bridge
-        try:
-            from ergon.core.mcp.hermes_bridge import ErgonMCPBridge
-            from ergon.api.fastmcp_endpoints import get_a2a_client
             
-            # Get the A2A client
-            a2a_client = await get_a2a_client()
+            if is_registered_with_hermes:
+                logger.info("Successfully registered with Hermes")
+                # Start heartbeat task
+                heartbeat_task = asyncio.create_task(
+                    heartbeat_loop(hermes_registration, COMPONENT_NAME, interval=30)
+                )
+                logger.info("Started Hermes heartbeat task")
+            else:
+                logger.warning("Failed to register with Hermes - continuing without registration")
             
-            global mcp_bridge
-            mcp_bridge = ErgonMCPBridge(a2a_client)
-            await mcp_bridge.initialize()
-            logger.info("Initialized Hermes MCP Bridge for FastMCP tools")
+            # Initialize FastMCP
+            await fastmcp_startup()
+            logger.info("FastMCP initialized")
+            
+            # Initialize Hermes MCP Bridge
+            try:
+                from ergon.core.mcp.hermes_bridge import ErgonMCPBridge
+                from ergon.api.fastmcp_endpoints import get_a2a_client
+                
+                # Get the A2A client
+                a2a_client = await get_a2a_client()
+                
+                mcp_bridge = ErgonMCPBridge(a2a_client)
+                await mcp_bridge.initialize()
+                logger.info("Initialized Hermes MCP Bridge for FastMCP tools")
+            except Exception as e:
+                logger.warning(f"Failed to initialize MCP Bridge: {e}")
+            
         except Exception as e:
-            logger.warning(f"Failed to initialize MCP Bridge: {e}")
-        
-    except Exception as e:
-        logger.error(f"Error during Ergon startup: {e}", exc_info=True)
-        raise StartupError(str(e), COMPONENT_NAME, "STARTUP_FAILED")
-
-async def cleanup_tasks():
-    """Cleanup Ergon resources."""
-    global heartbeat_task
-    logger.info("Shutting down Ergon API")
+            logger.error(f"Error during Ergon startup: {e}", exc_info=True)
+            raise StartupError(str(e), COMPONENT_NAME, "STARTUP_FAILED")
     
-    # Cancel heartbeat task
-    if heartbeat_task:
-        heartbeat_task.cancel()
-        try:
-            await heartbeat_task
-        except asyncio.CancelledError:
-            pass
-    
-    # Deregister from Hermes
-    if hermes_registration and is_registered_with_hermes:
-        await hermes_registration.deregister(COMPONENT_NAME)
-        logger.info("Deregistered from Hermes")
-    
-    # Cleanup FastMCP
+    # Execute startup with metrics
     try:
-        await fastmcp_shutdown()
-        logger.info("FastMCP shut down")
+        metrics = await component_startup(COMPONENT_NAME, ergon_startup, timeout=30)
+        logger.info(f"Ergon started successfully in {metrics.total_time:.2f}s")
     except Exception as e:
-        logger.warning(f"Error shutting down FastMCP: {e}")
+        logger.error(f"Failed to start Ergon: {e}")
+        raise
     
-    # Cleanup MCP bridge
-    global mcp_bridge
-    if mcp_bridge:
+    # Create shutdown handler
+    shutdown = GracefulShutdown(COMPONENT_NAME)
+    
+    # Register cleanup tasks
+    async def cleanup_hermes():
+        """Cleanup Hermes registration."""
+        if heartbeat_task:
+            heartbeat_task.cancel()
+            try:
+                await heartbeat_task
+            except asyncio.CancelledError:
+                pass
+        
+        if hermes_registration and is_registered_with_hermes:
+            await hermes_registration.deregister(COMPONENT_NAME)
+            logger.info("Deregistered from Hermes")
+    
+    async def cleanup_fastmcp():
+        """Cleanup FastMCP."""
         try:
-            await mcp_bridge.shutdown()
-            logger.info("MCP bridge cleaned up")
+            await fastmcp_shutdown()
+            logger.info("FastMCP shut down")
         except Exception as e:
-            logger.warning(f"Error cleaning up MCP bridge: {e}")
+            logger.warning(f"Error shutting down FastMCP: {e}")
     
-    logger.info("Ergon API server shutdown complete")
-
-# Get configuration for port
-config = get_component_config()
-ergon_port = config.ergon.port if hasattr(config, 'ergon') else int(os.environ.get("ERGON_PORT"))
+    async def cleanup_mcp_bridge():
+        """Cleanup MCP bridge."""
+        if mcp_bridge:
+            try:
+                await mcp_bridge.shutdown()
+                logger.info("MCP bridge cleaned up")
+            except Exception as e:
+                logger.warning(f"Error cleaning up MCP bridge: {e}")
+    
+    shutdown.register_cleanup(cleanup_hermes)
+    shutdown.register_cleanup(cleanup_fastmcp)
+    shutdown.register_cleanup(cleanup_mcp_bridge)
+    
+    yield
+    
+    # Shutdown
+    logger.info("Shutting down Ergon API")
+    await shutdown.shutdown_sequence(timeout=10)
+    
+    # Socket release delay for macOS
+    await asyncio.sleep(0.5)
 
 # Create FastAPI app with proper URL paths following Single Port Architecture
 app = FastAPI(
@@ -202,12 +223,7 @@ app = FastAPI(
         component_version=COMPONENT_VERSION,
         component_description=COMPONENT_DESCRIPTION
     ),
-    lifespan=component_lifespan(
-        COMPONENT_NAME,
-        startup_tasks,
-        [cleanup_tasks],
-        port=ergon_port
-    )
+    lifespan=lifespan
 )
 
 # Add CORS middleware
